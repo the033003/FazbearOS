@@ -22,7 +22,7 @@ Requirements:
 
 Instructions:
 
-- Prepare buildenv: `docker build buildenv -t -buildenv fazbear-buildenv`  
+- Prepare buildenv: `docker build buildenv -t fazbear-buildenv`  
 
 - Enter buildenv: `docker run --rm -it -v "$(pwd)":/root/env fazbear-buildenv`  
 
