@@ -10,7 +10,7 @@ Requirements for prebuilt ISO:
 Instructions for running:
 - Emulate with Qemu: `qemu-system-x86_64 -cdrom PATH/TO/kernel.iso`  
 OR 
-- Burn to a usb and run on bare hardware (UNTESTED)
+- Burn to a usb and run on bare hardware (TESTED)
 
 ## Building from source
 If you use this method, I'd highly reccommend using Linux. Windows is untested.
