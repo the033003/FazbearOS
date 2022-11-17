@@ -22,9 +22,9 @@ Requirements:
 
 Instructions:
 
-- Prepare buildenv: `docker build buildenv -t fazbear-buildenv`  
+- Prepare buildenv: `sudo docker build buildenv -t fazbear-buildenv`  
 
-- Enter buildenv: `docker run --rm -it -v "$(pwd)":/root/env fazbear-buildenv`  
+- Enter buildenv: `sudo docker run --rm -it -v "$(pwd)":/root/env fazbear-buildenv`  
 
 - Build ISO with Make: `make build-x86_64` Then exit: `exit`  
 
