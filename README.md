@@ -5,19 +5,20 @@ Please don't sue me scott
 *Find downloads in Releases tab*
 
 Requirements for prebuilt ISO:
-- Virtual machine program (Qemu for Linux ) (Virtualbox for Windows/OS X)
+- Virtual machine program (Qemu for Linux) (VMware for Windows)
+- I have not been able to get VirtualBox to work, but feel free to try
 
 Instructions for running:
 - Emulate with Qemu: `qemu-system-x86_64 -cdrom PATH/TO/kernel.iso`  
 OR 
-- Burn to a usb and run on bare hardware (TESTED)
+- Burn to a usb and run on bare hardware
 
 ## Building from source
-If you use this method, I'd highly reccommend using Linux. Windows is untested.
+If you use this method, I'd highly reccommend using Linux.
 
 Requirements:
 - Docker (Installed AND Daemon running)
-- Qemu x86_64 (Or Virtualbox for Windows/OS X)
+- Qemu x86_64 (VMware for Windows)
 - VS Code or similar IDE to make changes (If desired)
 
 Instructions:
