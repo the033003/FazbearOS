@@ -1,5 +1,7 @@
 #include "interrupts.h"
+
 #include "io.h"
+#include "mouse.h"
 #include "print.h"
 
 struct idt_entry {
@@ -65,7 +67,10 @@ static void idt_set_gate(
         (uint64_t)handler;
 
     idt[vector].offset_low =
-        (uint16_t)(address & 0xFFFF);
+        (uint16_t)(
+            address &
+            0xFFFF
+        );
 
     idt[vector].selector =
         0x08;
@@ -111,7 +116,9 @@ static void idt_load(void)
 
 static void idt_clear(void)
 {
-    for (size_t i = 0; i < 256; i++) {
+    for (size_t i = 0;
+         i < 256;
+         i++) {
 
         idt[i] =
             (struct idt_entry) {
@@ -124,6 +131,11 @@ void irq_end_of_interrupt(
     uint8_t irq
 )
 {
+    /*
+     * IRQ8-IRQ15 originate on the slave PIC.
+     *
+     * The slave receives EOI first, followed by the master.
+     */
     if (irq >= 8) {
 
         outb(
@@ -176,11 +188,8 @@ void interrupts_init(void)
     idt_set_gate(31, isr31);
 
     /*
-     * IRQ0 -> vector 32
-     * IRQ1 -> vector 33
-     * IRQ12 -> vector 44
+     * Hardware IRQs.
      */
-
     idt_set_gate(
         32,
         irq0
@@ -191,6 +200,9 @@ void interrupts_init(void)
         irq1
     );
 
+    /*
+     * IRQ12 -> PIC vector 44.
+     */
     idt_set_gate(
         44,
         irq12
@@ -199,18 +211,11 @@ void interrupts_init(void)
     idt_load();
 
     /*
-     * Interrupts are deliberately NOT enabled here.
-     *
-     * main.c executes STI after:
-     *
-     *   PIC
-     *   timer
-     *   keyboard
-     *   mouse
-     *   desktop
-     *
-     * are initialized.
+     * The IDT is now valid.
      */
+    __asm__ volatile (
+        "sti"
+    );
 }
 
 static const char* exception_name(
@@ -303,6 +308,9 @@ void interrupt_dispatch(
         return;
     }
 
+    /*
+     * Hardware IRQs use vectors 32-47.
+     */
     if (frame->vector >= 32 &&
         frame->vector <= 47) {
 
@@ -325,8 +333,10 @@ void interrupt_dispatch(
 
         } else if (irq == 12) {
 
-            extern void mouse_interrupt(void);
-
+            /*
+             * Let the mouse driver inspect the controller
+             * status and consume the auxiliary byte.
+             */
             mouse_interrupt();
         }
 
@@ -337,6 +347,9 @@ void interrupt_dispatch(
         return;
     }
 
+    /*
+     * CPU exception.
+     */
     if (frame->vector < 32) {
 
         __asm__ volatile (
@@ -420,8 +433,7 @@ void interrupt_dispatch(
 
         print_str(
             "\n"
-            "The kernel has halted to prevent "
-            "further corruption.\n"
+            "The kernel has halted to prevent further corruption.\n"
         );
 
         print_set_color(
@@ -429,7 +441,7 @@ void interrupt_dispatch(
             PRINT_COLOR_BLACK
         );
 
-        while (1) {
+        for (;;) {
 
             __asm__ volatile (
                 "hlt"

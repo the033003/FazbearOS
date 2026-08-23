@@ -26,7 +26,7 @@ void mouse_interrupt(void);
 
 void mouse_handle_byte(uint8_t value);
 
-const struct mouse_state* mouse_get_state(void);
+const struct mouse_state *mouse_get_state(void);
 
 int mouse_event_available(void);
 

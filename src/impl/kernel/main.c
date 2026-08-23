@@ -8,9 +8,12 @@
 #include "keyboard.h"
 #include "log.h"
 #include "memory.h"
+#include "mouse.h"
 #include "pic.h"
 #include "print.h"
 #include "timer.h"
+
+#include "desktop/desktop.h"
 
 static uint64_t boot_information;
 
@@ -85,18 +88,11 @@ static void initialize_kernel(void)
         log_info(
             "ramfs mounted"
         );
-
-    } else {
-
-        log_info(
-            "ramfs unavailable"
-        );
     }
 
     /*
-     * Initialize graphics AFTER the heap,
-     * because the software framebuffer is
-     * allocated from the kernel heap.
+     * Graphics must be initialized after the heap because
+     * the software back buffer is allocated from the heap.
      */
     log_info(
         "initializing graphics"
@@ -104,10 +100,6 @@ static void initialize_kernel(void)
 
     graphics_init(
         boot_information
-    );
-
-    log_info(
-        "graphics_init returned"
     );
 
     if (!graphics_available()) {
@@ -121,7 +113,7 @@ static void initialize_kernel(void)
             "FRAMEBUFFER UNAVAILABLE\n"
         );
 
-        while (1) {
+        for (;;) {
             __asm__ volatile (
                 "hlt"
             );
@@ -146,7 +138,7 @@ static void initialize_kernel(void)
             "FRAMEBUFFER INVALID\n"
         );
 
-        while (1) {
+        for (;;) {
             __asm__ volatile (
                 "hlt"
             );
@@ -158,93 +150,82 @@ static void initialize_kernel(void)
     );
 
     /*
-     * Do NOT initialize interrupts, timer,
-     * keyboard, mouse, or desktop yet.
+     * Initialize the PIC first.
      *
-     * We are deliberately isolating the
-     * framebuffer from everything else.
+     * Interrupts are still disabled at this point.
      */
-}
-
-static void framebuffer_test(void)
-{
     log_info(
-        "starting framebuffer test"
+        "initializing PIC"
     );
+
+    pic_init();
 
     /*
-     * Entire frame goes into the software
-     * buffer.
+     * Install the IDT.
+     *
+     * interrupts_init() no longer executes STI.
      */
-    graphics_clear(
-        0x202040
+    log_info(
+        "initializing IDT"
     );
 
-    /*
-     * Large cyan rectangle.
-     */
-    graphics_fill_rect(
-        50,
-        50,
-        400,
-        200,
-        0x00AAFF
-    );
-
-    /*
-     * White border.
-     */
-    graphics_rect(
-        50,
-        50,
-        400,
-        200,
-        0xFFFFFF
-    );
-
-    /*
-     * Text.
-     */
-    graphics_draw_text(
-        80,
-        100,
-        "FAZBEAROS",
-        0xFFFFFF,
-        0x00AAFF,
-        2
-    );
-
-    graphics_draw_text(
-        80,
-        135,
-        "GRAPHICS OK",
-        0xFFFFFF,
-        0x00AAFF,
-        2
-    );
-
-    /*
-     * Present exactly once.
-     */
-    graphics_present();
+    interrupts_init();
 
     log_info(
-        "framebuffer test presented"
+        "IDT loaded"
     );
 
     /*
-     * Stay here.
-     *
-     * No interrupts.
-     * No mouse.
-     * No desktop.
-     * No repeated framebuffer copies.
+     * Initialize all IRQ-driven devices before enabling
+     * interrupts. This prevents the mouse from interrupting
+     * the CPU while mouse_init() is synchronously talking
+     * to the PS/2 controller.
      */
-    while (1) {
-        __asm__ volatile (
-            "hlt"
-        );
-    }
+    log_info(
+        "initializing timer"
+    );
+
+    timer_init(
+        100
+    );
+
+    log_info(
+        "timer initialized"
+    );
+
+    log_info(
+        "initializing keyboard"
+    );
+
+    keyboard_init();
+
+    log_info(
+        "keyboard initialized"
+    );
+
+    log_info(
+        "initializing mouse"
+    );
+
+    mouse_init();
+
+    log_info(
+        "mouse initialized"
+    );
+
+    /*
+     * Everything that can generate a hardware interrupt is
+     * now initialized.
+     *
+     * It is finally safe to enable interrupts.
+     */
+    __asm__ volatile (
+        "sti"
+    );
+
+    log_info(
+        "interrupts enabled"
+    );
 }
 
 void kernel_main(
@@ -268,10 +249,58 @@ void kernel_main(
     print_str(
         "\n"
         "========================================\n"
-        "          FRAMEBUFFER TEST              \n"
+        "             FazbearOS Desktop          \n"
         "========================================\n"
         "\n"
     );
 
-    framebuffer_test();
+    log_info(
+        "starting desktop"
+    );
+
+    desktop_t desktop;
+
+    const struct framebuffer*
+        framebuffer =
+        graphics_get_framebuffer();
+
+    desktop_init(
+        &desktop,
+        (int)framebuffer->width,
+        (int)framebuffer->height
+    );
+
+    log_info(
+        "desktop initialized"
+    );
+
+    /*
+     * Main desktop loop.
+     *
+     * Input is collected from interrupt handlers.
+     * desktop_update() consumes the latest mouse event.
+     * Rendering always goes to the software back buffer.
+     * graphics_present() copies that buffer to the real
+     * framebuffer.
+     */
+    for (;;) {
+
+        desktop_update(
+            &desktop
+        );
+
+        desktop_render(
+            &desktop
+        );
+
+        graphics_present();
+
+        /*
+         * Interrupts are enabled, so HLT sleeps until the
+         * next timer, keyboard, or mouse interrupt.
+         */
+        __asm__ volatile (
+            "hlt"
+        );
+    }
 }

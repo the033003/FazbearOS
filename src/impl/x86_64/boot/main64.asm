@@ -8,9 +8,21 @@ extern multiboot_information
 section .text
 
 main64:
-    mov rsp, stack_top64
+    ; main.asm has already established a valid 64-bit stack.
+    ; Do not replace or redefine that stack here.
 
-    mov rdi, [multiboot_information]
+    ; System V AMD64 ABI:
+    ; RSP must be 16-byte aligned immediately before CALL.
+    sub rsp, 8
+
+    ; Pass the Multiboot2 information pointer as the first
+    ; argument to kernel_main().
+    mov edi, dword [multiboot_information]
+
+    ; Keep interrupts disabled until the kernel installs
+    ; a valid IDT.
+    cli
+    cld
 
     call kernel_main
 
@@ -18,13 +30,3 @@ main64:
     cli
     hlt
     jmp .hang
-
-
-section .bss
-
-align 16
-
-stack_bottom64:
-    resb 16384
-
-stack_top64:

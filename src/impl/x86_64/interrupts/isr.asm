@@ -1,3 +1,5 @@
+BITS 64
+
 global isr0
 global isr1
 global isr2
@@ -39,68 +41,177 @@ extern interrupt_dispatch
 
 section .text
 
-%macro ISR_NO_ERROR 1
-isr%1:
+isr0:
     push qword 0
-    push qword %1
-    jmp common_interrupt
-%endmacro
-
-%macro ISR_ERROR 1
-isr%1:
-    push qword %1
-    jmp common_interrupt
-%endmacro
-
-%macro IRQ 2
-irq%1:
     push qword 0
-    push qword %2
     jmp common_interrupt
-%endmacro
 
-ISR_NO_ERROR 0
-ISR_NO_ERROR 1
-ISR_NO_ERROR 2
-ISR_NO_ERROR 3
-ISR_NO_ERROR 4
-ISR_NO_ERROR 5
-ISR_NO_ERROR 6
-ISR_NO_ERROR 7
+isr1:
+    push qword 0
+    push qword 1
+    jmp common_interrupt
 
-ISR_ERROR 8
+isr2:
+    push qword 0
+    push qword 2
+    jmp common_interrupt
 
-ISR_NO_ERROR 9
+isr3:
+    push qword 0
+    push qword 3
+    jmp common_interrupt
 
-ISR_ERROR 10
-ISR_ERROR 11
-ISR_ERROR 12
-ISR_ERROR 13
-ISR_ERROR 14
+isr4:
+    push qword 0
+    push qword 4
+    jmp common_interrupt
 
-ISR_NO_ERROR 15
-ISR_NO_ERROR 16
-ISR_NO_ERROR 17
-ISR_NO_ERROR 18
-ISR_NO_ERROR 19
-ISR_NO_ERROR 20
-ISR_NO_ERROR 21
-ISR_NO_ERROR 22
-ISR_NO_ERROR 23
-ISR_NO_ERROR 24
-ISR_NO_ERROR 25
-ISR_NO_ERROR 26
-ISR_NO_ERROR 27
-ISR_NO_ERROR 28
-ISR_NO_ERROR 29
-ISR_NO_ERROR 30
-ISR_NO_ERROR 31
+isr5:
+    push qword 0
+    push qword 5
+    jmp common_interrupt
 
-IRQ 0, 32
-IRQ 1, 33
-IRQ 12, 44
+isr6:
+    push qword 0
+    push qword 6
+    jmp common_interrupt
+
+isr7:
+    push qword 0
+    push qword 7
+    jmp common_interrupt
+
+isr8:
+    push qword 8
+    jmp common_interrupt
+
+isr9:
+    push qword 0
+    push qword 9
+    jmp common_interrupt
+
+isr10:
+    push qword 10
+    jmp common_interrupt
+
+isr11:
+    push qword 11
+    jmp common_interrupt
+
+isr12:
+    push qword 12
+    jmp common_interrupt
+
+isr13:
+    push qword 13
+    jmp common_interrupt
+
+isr14:
+    push qword 14
+    jmp common_interrupt
+
+isr15:
+    push qword 0
+    push qword 15
+    jmp common_interrupt
+
+isr16:
+    push qword 0
+    push qword 16
+    jmp common_interrupt
+
+isr17:
+    push qword 0
+    push qword 17
+    jmp common_interrupt
+
+isr18:
+    push qword 0
+    push qword 18
+    jmp common_interrupt
+
+isr19:
+    push qword 0
+    push qword 19
+    jmp common_interrupt
+
+isr20:
+    push qword 0
+    push qword 20
+    jmp common_interrupt
+
+isr21:
+    push qword 0
+    push qword 21
+    jmp common_interrupt
+
+isr22:
+    push qword 0
+    push qword 22
+    jmp common_interrupt
+
+isr23:
+    push qword 0
+    push qword 23
+    jmp common_interrupt
+
+isr24:
+    push qword 0
+    push qword 24
+    jmp common_interrupt
+
+isr25:
+    push qword 0
+    push qword 25
+    jmp common_interrupt
+
+isr26:
+    push qword 0
+    push qword 26
+    jmp common_interrupt
+
+isr27:
+    push qword 0
+    push qword 27
+    jmp common_interrupt
+
+isr28:
+    push qword 0
+    push qword 28
+    jmp common_interrupt
+
+isr29:
+    push qword 0
+    push qword 29
+    jmp common_interrupt
+
+isr30:
+    push qword 0
+    push qword 30
+    jmp common_interrupt
+
+isr31:
+    push qword 0
+    push qword 31
+    jmp common_interrupt
+
+irq0:
+    push qword 0
+    push qword 32
+    jmp common_interrupt
+
+irq1:
+    push qword 0
+    push qword 33
+    jmp common_interrupt
+
+irq12:
+    push qword 0
+    push qword 44
+    jmp common_interrupt
 
 common_interrupt:
+
     push rax
     push rbx
     push rcx

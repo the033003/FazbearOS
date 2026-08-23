@@ -1,4 +1,5 @@
 #include "pic.h"
+
 #include "io.h"
 
 #define PIC1_COMMAND 0x20
@@ -7,14 +8,14 @@
 #define PIC2_COMMAND 0xA0
 #define PIC2_DATA    0xA1
 
-#define ICW1_ICW4    0x01
-#define ICW1_INIT    0x10
-#define ICW4_8086    0x01
+#define ICW1_ICW4 0x01
+#define ICW1_INIT 0x10
+#define ICW4_8086 0x01
 
 void pic_init(void)
 {
     /*
-     * Initialize master PIC.
+     * Begin initialization sequence.
      */
     outb(
         PIC1_COMMAND,
@@ -23,9 +24,6 @@ void pic_init(void)
 
     io_wait();
 
-    /*
-     * Initialize slave PIC.
-     */
     outb(
         PIC2_COMMAND,
         ICW1_INIT | ICW1_ICW4
@@ -34,7 +32,10 @@ void pic_init(void)
     io_wait();
 
     /*
-     * Master IRQs -> vectors 32-39.
+     * Remap:
+     *
+     * Master IRQ0-7  -> vectors 32-39
+     * Slave  IRQ8-15 -> vectors 40-47
      */
     outb(
         PIC1_DATA,
@@ -43,9 +44,6 @@ void pic_init(void)
 
     io_wait();
 
-    /*
-     * Slave IRQs -> vectors 40-47.
-     */
     outb(
         PIC2_DATA,
         40
@@ -54,7 +52,7 @@ void pic_init(void)
     io_wait();
 
     /*
-     * Slave is connected to master IRQ2.
+     * Slave PIC is connected to master IRQ2.
      */
     outb(
         PIC1_DATA,
@@ -64,7 +62,7 @@ void pic_init(void)
     io_wait();
 
     /*
-     * Slave identity = 2.
+     * Slave identity is IRQ2.
      */
     outb(
         PIC2_DATA,
@@ -91,30 +89,22 @@ void pic_init(void)
     io_wait();
 
     /*
-     * Mask everything initially.
+     * Begin with all IRQs masked.
      */
     pic_mask_all();
 
     /*
-     * IRQ0 = timer.
+     * Enable:
+     *
+     * IRQ0  timer
+     * IRQ1  keyboard
+     * IRQ2  slave cascade
+     * IRQ12 mouse
      */
     pic_unmask(0);
-
-    /*
-     * IRQ1 = keyboard.
-     */
     pic_unmask(1);
-
-    /*
-     * IRQ12 = PS/2 mouse.
-     */
-    pic_unmask(12);
-
-    /*
-     * IRQ12 is behind the slave PIC.
-     * Therefore IRQ2 on the master must be open.
-     */
     pic_unmask(2);
+    pic_unmask(12);
 }
 
 void pic_mask_all(void)
@@ -133,6 +123,7 @@ void pic_mask_all(void)
 void pic_unmask(uint8_t irq)
 {
     if (irq < 8) {
+
         uint8_t mask =
             inb(PIC1_DATA);
 
@@ -168,6 +159,7 @@ void pic_unmask(uint8_t irq)
 void pic_mask(uint8_t irq)
 {
     if (irq < 8) {
+
         uint8_t mask =
             inb(PIC1_DATA);
 

@@ -11,166 +11,192 @@ section .text
 start:
     cli
 
-    mov esp, stack_top
-
-    cmp eax, 0x36d76289
-    jne .no_multiboot
+    ; Save the Multiboot2 information pointer immediately.
+    ;
+    ; GRUB provides:
+    ;   EAX = 0x36D76289
+    ;   EBX = physical address of the Multiboot2 information.
+    cmp eax, 0x36D76289
+    jne .halt
 
     mov [multiboot_magic], eax
     mov [multiboot_information], ebx
 
+    ; Establish a known 32-bit stack before doing anything else.
+    mov esp, stack_top
+
+    ; Build identity mappings for the first 4 GiB.
     call setup_page_tables
 
+    ; Load our 64-bit GDT while we are still in protected mode.
     lgdt [gdt64_pointer]
 
+    ; Enable PAE.
     mov eax, cr4
-    or eax, 1 << 5
+    or eax, 0x20
     mov cr4, eax
 
+    ; Load PML4.
     mov eax, page_table_l4
     mov cr3, eax
 
+    ; Enable Long Mode.
     mov ecx, 0xC0000080
     rdmsr
-    or eax, 1 << 8
+    or eax, 0x00000100
     wrmsr
 
+    ; Enable paging.
     mov eax, cr0
-    or eax, 1 << 31
+    or eax, 0x80000000
     mov cr0, eax
 
+    ; Far jump into the 64-bit code segment.
     jmp 0x08:long_mode_start
 
-.no_multiboot:
-    hlt
-    jmp .no_multiboot
 
+.halt:
+    cli
+
+.halt_loop:
+    hlt
+    jmp .halt_loop
+
+
+; ---------------------------------------------------------------------------
+; Identity-map the first 4 GiB.
+;
+; PML4
+;   |
+;   +-- PDP[0] -> PD[0] -> 0x00000000 - 0x3FFFFFFF
+;   +-- PDP[1] -> PD[1] -> 0x40000000 - 0x7FFFFFFF
+;   +-- PDP[2] -> PD[2] -> 0x80000000 - 0xBFFFFFFF
+;   +-- PDP[3] -> PD[3] -> 0xC0000000 - 0xFFFFFFFF
+;
+; Each PD contains 512 x 2 MiB pages.
+; ---------------------------------------------------------------------------
 
 setup_page_tables:
 
-    ; Clear L4
+    ; Clear PML4.
     mov edi, page_table_l4
     xor eax, eax
-    mov ecx, 4096 / 4
+    mov ecx, 1024
     rep stosd
 
-    ; Clear L3
+    ; Clear PDP.
     mov edi, page_table_l3
     xor eax, eax
-    mov ecx, 4096 / 4
+    mov ecx, 1024
     rep stosd
 
-    ; Clear all four L2 tables
+    ; Clear all four page directories.
     mov edi, page_table_l2_0
     xor eax, eax
-    mov ecx, 4096 / 4
+    mov ecx, 1024
     rep stosd
 
     mov edi, page_table_l2_1
     xor eax, eax
-    mov ecx, 4096 / 4
+    mov ecx, 1024
     rep stosd
 
     mov edi, page_table_l2_2
     xor eax, eax
-    mov ecx, 4096 / 4
+    mov ecx, 1024
     rep stosd
 
     mov edi, page_table_l2_3
     xor eax, eax
-    mov ecx, 4096 / 4
+    mov ecx, 1024
     rep stosd
 
 
-    ; L4[0] -> L3
+    ; PML4[0] -> PDP.
     mov eax, page_table_l3
     or eax, 0x03
-    mov [page_table_l4], eax
+    mov [page_table_l4 + 0], eax
 
 
-    ; L3[0] -> first 1 GiB
+    ; PDP[0] -> PD0.
     mov eax, page_table_l2_0
     or eax, 0x03
     mov [page_table_l3 + 0], eax
 
-    ; L3[1] -> second 1 GiB
+    ; PDP[1] -> PD1.
     mov eax, page_table_l2_1
     or eax, 0x03
     mov [page_table_l3 + 8], eax
 
-    ; L3[2] -> third 1 GiB
+    ; PDP[2] -> PD2.
     mov eax, page_table_l2_2
     or eax, 0x03
     mov [page_table_l3 + 16], eax
 
-    ; L3[3] -> fourth 1 GiB
+    ; PDP[3] -> PD3.
     mov eax, page_table_l2_3
     or eax, 0x03
     mov [page_table_l3 + 24], eax
 
 
-    ; ----------------------------------------
-    ; L2 #0
-    ; Maps physical 0x00000000 - 0x3FFFFFFF
-    ; ----------------------------------------
+    ; -----------------------------------------------------------------------
+    ; PD0: 0x00000000 - 0x3FFFFFFF
+    ; -----------------------------------------------------------------------
 
     mov edi, page_table_l2_0
     mov eax, 0x00000083
     mov ecx, 512
 
-.map_l2_0:
+.map0:
     mov [edi], eax
-    add eax, 0x200000
+    add eax, 0x00200000
     add edi, 8
-    loop .map_l2_0
+    loop .map0
 
 
-    ; ----------------------------------------
-    ; L2 #1
-    ; Maps physical 0x40000000 - 0x7FFFFFFF
-    ; ----------------------------------------
+    ; -----------------------------------------------------------------------
+    ; PD1: 0x40000000 - 0x7FFFFFFF
+    ; -----------------------------------------------------------------------
 
     mov edi, page_table_l2_1
     mov eax, 0x40000083
     mov ecx, 512
 
-.map_l2_1:
+.map1:
     mov [edi], eax
-    add eax, 0x200000
+    add eax, 0x00200000
     add edi, 8
-    loop .map_l2_1
+    loop .map1
 
 
-    ; ----------------------------------------
-    ; L2 #2
-    ; Maps physical 0x80000000 - 0xBFFFFFFF
-    ; ----------------------------------------
+    ; -----------------------------------------------------------------------
+    ; PD2: 0x80000000 - 0xBFFFFFFF
+    ; -----------------------------------------------------------------------
 
     mov edi, page_table_l2_2
     mov eax, 0x80000083
     mov ecx, 512
 
-.map_l2_2:
+.map2:
     mov [edi], eax
-    add eax, 0x200000
+    add eax, 0x00200000
     add edi, 8
-    loop .map_l2_2
+    loop .map2
 
 
-    ; ----------------------------------------
-    ; L2 #3
-    ; Maps physical 0xC0000000 - 0xFFFFFFFF
-    ; ----------------------------------------
+    ; -----------------------------------------------------------------------
+    ; PD3: 0xC0000000 - 0xFFFFFFFF
+    ; -----------------------------------------------------------------------
 
     mov edi, page_table_l2_3
     mov eax, 0xC0000083
     mov ecx, 512
 
-.map_l2_3:
+.map3:
     mov [edi], eax
-    add eax, 0x200000
+    add eax, 0x00200000
     add edi, 8
-    loop .map_l2_3
+    loop .map3
 
     ret
 
@@ -179,14 +205,26 @@ BITS 64
 
 long_mode_start:
 
+    ; Load the 64-bit data segment.
     mov ax, 0x10
     mov ds, ax
     mov es, ax
     mov ss, ax
+    mov fs, ax
+    mov gs, ax
 
+    ; Use a stack that is identity mapped.
     mov rsp, stack_top64
 
-    mov rdi, [multiboot_information]
+    ; Clear direction flag for C code.
+    cld
+
+    ; Pass the Multiboot2 information pointer to main64().
+    mov edi, dword [multiboot_information]
+    mov rdi, rdi
+
+    ; Keep interrupts disabled until the kernel installs an IDT.
+    cli
 
     call main64
 
@@ -198,9 +236,18 @@ long_mode_start:
 
 section .rodata
 
+align 8
+
 gdt64:
-    dq 0
+    ; Null descriptor.
+    dq 0x0000000000000000
+
+    ; 64-bit code segment:
+    ; present, ring 0, executable, readable, long mode.
     dq 0x00AF9A000000FFFF
+
+    ; 64-bit data segment:
+    ; present, ring 0, writable.
     dq 0x00AF92000000FFFF
 
 gdt64_pointer:
@@ -250,7 +297,7 @@ stack_top64:
 align 8
 
 multiboot_magic:
-    resq 1
+    resd 1
 
 multiboot_information:
-    resq 1
+    resd 1

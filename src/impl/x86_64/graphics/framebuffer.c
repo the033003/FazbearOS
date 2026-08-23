@@ -14,7 +14,7 @@ struct multiboot_tag {
 /*
  * Multiboot2 framebuffer tag.
  *
- * This layout follows the Multiboot2 specification:
+ * Layout:
  *
  *   u32 type
  *   u32 size
@@ -32,7 +32,6 @@ struct multiboot_tag_framebuffer {
     uint32_t size;
 
     uint64_t framebuffer_addr;
-
     uint32_t framebuffer_pitch;
     uint32_t framebuffer_width;
     uint32_t framebuffer_height;
@@ -74,14 +73,12 @@ struct multiboot_tag_framebuffer {
 static struct framebuffer framebuffer;
 
 static uint32_t* back_buffer;
-
 static uint64_t back_buffer_size;
 
 static int available;
 
 /*
- * Convert our 0xRRGGBB color into the actual
- * framebuffer pixel layout.
+ * Convert a 0xRRGGBB color into the actual framebuffer pixel layout.
  */
 static uint32_t make_color(
     uint32_t color
@@ -100,7 +97,6 @@ static uint32_t make_color(
         0;
 
     if (framebuffer.red_mask != 0) {
-
         uint32_t value =
             red;
 
@@ -116,7 +112,6 @@ static uint32_t make_color(
     }
 
     if (framebuffer.green_mask != 0) {
-
         uint32_t value =
             green;
 
@@ -132,7 +127,6 @@ static uint32_t make_color(
     }
 
     if (framebuffer.blue_mask != 0) {
-
         uint32_t value =
             blue;
 
@@ -151,14 +145,10 @@ static uint32_t make_color(
 }
 
 /*
- * Copy the software back buffer into the real
- * framebuffer.
+ * Copy the software back buffer into the real framebuffer.
  *
- * IMPORTANT:
- *
- * The framebuffer pitch is in BYTES, and may be
- * larger than width * 4. Therefore we must use
- * pitch / 4 for the destination row stride.
+ * The framebuffer pitch is measured in bytes and may be larger
+ * than width * 4.
  */
 static void copy_framebuffer(void)
 {
@@ -173,7 +163,8 @@ static void copy_framebuffer(void)
         return;
     }
 
-    if (framebuffer.pitch < framebuffer.width * 4u) {
+    if (framebuffer.pitch <
+        framebuffer.width * 4u) {
         return;
     }
 
@@ -239,55 +230,89 @@ void graphics_init(
         return;
     }
 
+    /*
+     * A Multiboot2 information structure begins with:
+     *
+     *   uint32_t total_size;
+     *   uint32_t reserved;
+     *
+     * The FIRST TAG starts at offset 8.
+     *
+     * This is critical. The previous implementation incorrectly
+     * started parsing at offset 0, causing total_size to be
+     * interpreted as a tag type and the framebuffer tag to never
+     * be reached.
+     */
     uint8_t* mbi =
         (uint8_t*)(uintptr_t)
         multiboot_information;
 
+    uint32_t total_size =
+        *(uint32_t*)mbi;
+
+    if (total_size < 16) {
+        return;
+    }
+
     /*
-     * Multiboot2 boot information starts with
-     * a sequence of 8-byte-aligned tags.
+     * Multiboot2 structures must be 8-byte aligned.
+     *
+     * The total size includes the initial 8-byte header.
      */
-    struct multiboot_tag* tag =
-        (struct multiboot_tag*)mbi;
+    if ((total_size & 7u) != 0) {
+        return;
+    }
 
-    while (tag->type != MULTIBOOT_TAG_END) {
+    uint8_t* address =
+        mbi + 8;
 
-        /*
-         * Every Multiboot2 tag has at least the
-         * 8-byte header.
-         */
+    uint8_t* end =
+        mbi + total_size;
+
+    while (address + 8 <= end) {
+
+        struct multiboot_tag* tag =
+            (struct multiboot_tag*)address;
+
         if (tag->size < 8) {
             return;
+        }
+
+        if (address + tag->size > end) {
+            return;
+        }
+
+        if (tag->type ==
+            MULTIBOOT_TAG_END) {
+            break;
         }
 
         if (tag->type ==
             MULTIBOOT_TAG_FRAMEBUFFER) {
 
             /*
-             * Make sure the common framebuffer
-             * portion is actually present.
-             *
-             * The common portion ends at the
-             * reserved u16.
+             * The common framebuffer portion ends
+             * after the reserved u16, at 32 bytes.
              */
             if (tag->size < 32) {
                 return;
             }
 
-            struct multiboot_tag_framebuffer*
-                fb =
+            struct multiboot_tag_framebuffer* fb =
                 (struct multiboot_tag_framebuffer*)
                 tag;
 
             /*
-             * We currently support a 32-bit
-             * direct RGB framebuffer.
+             * We require a direct RGB framebuffer.
              */
             if (fb->framebuffer_type !=
                 MULTIBOOT_FRAMEBUFFER_RGB) {
                 return;
             }
 
+            /*
+             * The renderer works with 32-bit pixels.
+             */
             if (fb->framebuffer_bpp != 32) {
                 return;
             }
@@ -302,8 +327,7 @@ void graphics_init(
             }
 
             /*
-             * A 32-bit framebuffer needs at
-             * least width * 4 bytes per row.
+             * Validate the framebuffer pitch.
              */
             uint64_t minimum_pitch =
                 (uint64_t)
@@ -313,6 +337,29 @@ void graphics_init(
             if ((uint64_t)
                 fb->framebuffer_pitch <
                 minimum_pitch) {
+                return;
+            }
+
+            /*
+             * Validate the complete framebuffer size
+             * before storing any derived values.
+             */
+            uint64_t framebuffer_size =
+                (uint64_t)
+                fb->framebuffer_pitch *
+                (uint64_t)
+                fb->framebuffer_height;
+
+            if (framebuffer_size == 0) {
+                return;
+            }
+
+            /*
+             * Make sure the framebuffer address plus its
+             * size does not wrap around.
+             */
+            if (fb->framebuffer_addr >
+                UINT64_MAX - framebuffer_size) {
                 return;
             }
 
@@ -354,7 +401,7 @@ void graphics_init(
                 fb->framebuffer_reserved_mask_size;
 
             /*
-             * Calculate the software buffer size.
+             * Calculate the software back-buffer size.
              */
             uint64_t pixels =
                 (uint64_t)
@@ -362,9 +409,6 @@ void graphics_init(
                 (uint64_t)
                 framebuffer.height;
 
-            /*
-             * Guard against integer overflow.
-             */
             if (pixels >
                 ((uint64_t)SIZE_MAX /
                  sizeof(uint32_t))) {
@@ -378,9 +422,8 @@ void graphics_init(
                 sizeof(uint32_t);
 
             /*
-             * Allocate the software back buffer
-             * only after the framebuffer has been
-             * validated.
+             * The software back buffer is allocated after
+             * the physical framebuffer has been validated.
              */
             extern void* kmalloc(
                 size_t size
@@ -394,7 +437,6 @@ void graphics_init(
                 );
 
             if (back_buffer == 0) {
-
                 framebuffer.address = 0;
                 back_buffer_size = 0;
 
@@ -402,8 +444,7 @@ void graphics_init(
             }
 
             /*
-             * Start with a completely black
-             * back buffer.
+             * Start with a completely black back buffer.
              */
             for (uint64_t i = 0;
                  i < pixels;
@@ -420,17 +461,10 @@ void graphics_init(
         }
 
         /*
-         * THIS IS THE IMPORTANT FIX.
+         * Advance from the CURRENT tag.
          *
-         * The old code did:
-         *
-         *     address + next
-         *
-         * which jumps relative to the beginning
-         * of the Multiboot information block.
-         *
-         * It must instead advance from the
-         * CURRENT tag.
+         * Multiboot2 tags are individually padded to
+         * an 8-byte boundary.
          */
         uint32_t next =
             (tag->size + 7u) &
@@ -440,9 +474,11 @@ void graphics_init(
             return;
         }
 
-        tag =
-            (struct multiboot_tag*)
-            ((uint8_t*)tag + next);
+        if (address + next > end) {
+            return;
+        }
+
+        address += next;
     }
 }
 
@@ -651,8 +687,7 @@ void graphics_draw_char(
     /*
      * 5x5 font.
      *
-     * The array has 96 entries covering
-     * ASCII 32 through 127.
+     * Entries cover ASCII 32 through 127.
      */
     static const uint8_t font[96][5] = {
 
@@ -720,11 +755,6 @@ void graphics_draw_char(
         background
     );
 
-    /*
-     * char is signed on some targets, so
-     * convert it to unsigned before doing
-     * the range check.
-     */
     uint8_t character_code =
         (uint8_t)character;
 
