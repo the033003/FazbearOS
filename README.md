@@ -1,37 +1,95 @@
 # FazbearOS
-Please don't sue me scott
 
-## Prebuilt ISOs
-*Find downloads in Releases tab*
+Please don't sue me Scott.
 
-Requirements for prebuilt ISO:
-- Virtual machine program (Qemu for Linux) (VMware for Windows)
-- I have not been able to get VirtualBox to work, but feel free to try
+A hobby x86_64 operating system written in C and Assembly.  
+It boots into a simple graphical desktop with a working mouse and keyboard.
 
-Instructions for running:
-- Emulate with Qemu: `qemu-system-x86_64 -cdrom PATH/TO/kernel.iso`  
-OR 
-- Burn to a usb and run on bare hardware
+## Features
+
+- Multiboot2 + GRUB boot
+- 64-bit long mode
+- Physical memory manager + heap
+- Interrupt handling (IDT + PIC)
+- PS/2 keyboard and mouse
+- Linear framebuffer graphics
+- Basic windowed desktop (draggable window, taskbar, cursor)
+- Simple VFS + ramfs
+- Logging and a basic shell
+
+## Running a prebuilt ISO
+
+1. Download the latest ISO from the **Releases** tab.
+2. Run it with QEMU:
+
+```bash
+qemu-system-x86_64 -cdrom path/to/kernel.iso -m 256M
+```
+
+Click inside the QEMU window to capture the mouse.  
+Press `Left Ctrl + Left Alt` to release it.
+
+You can also burn the ISO to a USB stick and boot it on real hardware.
+
+> VirtualBox support is untested / unreliable. QEMU is recommended.
 
 ## Building from source
-If you use this method, I'd highly reccommend using Linux.
 
-Requirements:
-- Docker (Installed AND Daemon running)
-- Qemu x86_64 (VMware for Windows)
-- VS Code or similar IDE to make changes (If desired)
+**Recommended:** Linux + Docker.
 
-Instructions:
+### Requirements
 
-- Prepare buildenv: `sudo docker build buildenv -t fazbear-buildenv`  
+- Docker (daemon running)
+- QEMU (`qemu-system-x86_64`)
+- (Optional) a text editor
 
-- Enter buildenv: `sudo docker run --rm -it -v "$(pwd)":/root/env fazbear-buildenv`  
+### Steps
 
-- Build ISO with Make: `make build-x86_64` Then exit: `exit`  
+```bash
+# 1. Build the toolchain container
+sudo docker build buildenv -t fazbear-buildenv
 
-- Emulate with Qemu: `qemu-system-x86_64 -cdrom dist/x86_64/kernel.iso`  
+# 2. Enter the container (mounts the project)
+sudo docker run --rm -it -v "$(pwd)":/root/env fazbear-buildenv
 
-Done!
+# 3. Inside the container – build the ISO
+make build-x86_64
 
-Other options for source:
-- Remove docker image: `docker rmi fazbear-buildenv -f`
+# 4. Exit the container
+exit
+
+# 5. Run it
+qemu-system-x86_64 -cdrom dist/x86_64/kernel.iso -m 256M
+```
+
+### Useful Make targets
+
+| Command              | Description                  |
+|----------------------|------------------------------|
+| `make build-x86_64`  | Build kernel + ISO           |
+| `make clean`         | Remove build artifacts       |
+| `make run`           | Build and launch in QEMU     |
+
+### Cleaning up Docker
+
+```bash
+docker rmi fazbear-buildenv -f
+```
+
+## Project layout
+
+```
+src/
+├── impl/
+│   ├── kernel/          # Core kernel, desktop, memory, VFS…
+│   └── x86_64/          # Architecture-specific (boot, interrupts, drivers)
+└── intf/                # Public headers
+targets/x86_64/          # Linker script + ISO structure
+buildenv/                # Docker toolchain
+```
+
+## License
+
+GPL-3.0
+
+---
