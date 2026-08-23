@@ -33,6 +33,7 @@ global isr31
 
 global irq0
 global irq1
+global irq12
 
 extern interrupt_dispatch
 
@@ -97,6 +98,7 @@ ISR_NO_ERROR 31
 
 IRQ 0, 32
 IRQ 1, 33
+IRQ 12, 44
 
 common_interrupt:
     push rax

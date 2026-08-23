@@ -2,16 +2,17 @@
 
 #include "device.h"
 #include "fs.h"
+#include "graphics.h"
 #include "heap.h"
 #include "interrupts.h"
 #include "keyboard.h"
 #include "log.h"
 #include "memory.h"
+#include "mouse.h"
 #include "pic.h"
 #include "print.h"
 #include "shell.h"
 #include "timer.h"
-
 #include "desktop/desktop.h"
 
 static uint64_t boot_information;
@@ -45,7 +46,9 @@ static void initialize_kernel(void)
         "initializing memory subsystem"
     );
 
-    memory_init(boot_information);
+    memory_init(
+        boot_information
+    );
 
     heap_init();
 
@@ -65,7 +68,40 @@ static void initialize_kernel(void)
         ramfs_root();
 
     if (ram_root != 0) {
-        vfs_mount_root(ram_root);
+        vfs_mount_root(
+            ram_root
+        );
+    }
+
+    log_info(
+        "initializing graphics"
+    );
+
+    graphics_init(
+        boot_information
+    );
+
+    if (graphics_available()) {
+        const struct framebuffer* framebuffer =
+            graphics_get_framebuffer();
+
+        log_info(
+            "graphics framebuffer initialized"
+        );
+
+        print_str(
+            "Framebuffer: "
+        );
+
+        print_str(
+            "available\n"
+        );
+
+        (void)framebuffer;
+    } else {
+        log_info(
+            "graphics framebuffer unavailable"
+        );
     }
 
     log_info(
@@ -80,48 +116,59 @@ static void initialize_kernel(void)
         "initializing timer"
     );
 
-    timer_init(100);
+    timer_init(
+        100
+    );
 
     log_info(
         "initializing keyboard"
     );
 
     keyboard_init();
+
+    log_info(
+        "initializing mouse"
+    );
+
+    mouse_init();
 }
 
 static void start_desktop(void)
 {
     desktop_t desktop;
 
+    const struct framebuffer* framebuffer =
+        graphics_get_framebuffer();
+
+    int width = 1024;
+    int height = 768;
+
+    if (graphics_available() &&
+        framebuffer != 0 &&
+        framebuffer->width != 0 &&
+        framebuffer->height != 0) {
+
+        width =
+            (int)framebuffer->width;
+
+        height =
+            (int)framebuffer->height;
+    }
+
     log_info(
         "initializing desktop"
     );
 
-    /*
-     * The desktop currently uses the framebuffer's
-     * configured resolution.
-     *
-     * The desktop implementation owns rendering after
-     * initialization and will eventually become the
-     * compositor/window manager.
-     */
     desktop_init(
         &desktop,
-        1024,
-        768
+        width,
+        height
     );
 
     log_info(
         "desktop initialized"
     );
 
-    /*
-     * The kernel remains alive while the desktop runs.
-     *
-     * Future iterations will replace this polling loop
-     * with timer-driven scheduling and application
-     * processes.
-     */
     while (1) {
         desktop_update(
             &desktop
@@ -130,6 +177,8 @@ static void start_desktop(void)
         desktop_render(
             &desktop
         );
+
+        graphics_present();
 
         __asm__ volatile (
             "hlt"
@@ -163,10 +212,8 @@ void kernel_main(
     );
 
     /*
-     * The old shell is intentionally no longer started
-     * directly from the kernel.
-     *
-     * It will become a graphical terminal application.
+     * The shell will become a graphical
+     * terminal application.
      */
     start_desktop();
 }

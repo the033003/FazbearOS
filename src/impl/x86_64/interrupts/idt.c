@@ -52,6 +52,7 @@ extern void isr31(void);
 
 extern void irq0(void);
 extern void irq1(void);
+extern void irq12(void);
 
 static struct idt_entry idt[256];
 
@@ -60,32 +61,46 @@ static void idt_set_gate(
     void (*handler)(void)
 )
 {
-    uint64_t address = (uint64_t)handler;
+    uint64_t address =
+        (uint64_t)handler;
 
     idt[vector].offset_low =
         (uint16_t)(address & 0xFFFF);
 
-    idt[vector].selector = 0x08;
+    idt[vector].selector =
+        0x08;
 
-    idt[vector].ist = 0;
+    idt[vector].ist =
+        0;
 
-    idt[vector].type_attributes = 0x8E;
+    idt[vector].type_attributes =
+        0x8E;
 
     idt[vector].offset_middle =
-        (uint16_t)((address >> 16) & 0xFFFF);
+        (uint16_t)(
+            (address >> 16) &
+            0xFFFF
+        );
 
     idt[vector].offset_high =
-        (uint32_t)((address >> 32) & 0xFFFFFFFF);
+        (uint32_t)(
+            (address >> 32) &
+            0xFFFFFFFF
+        );
 
-    idt[vector].reserved = 0;
+    idt[vector].reserved =
+        0;
 }
 
 static void idt_load(void)
 {
     struct idt_pointer pointer;
 
-    pointer.limit = sizeof(idt) - 1;
-    pointer.base = (uint64_t)&idt[0];
+    pointer.limit =
+        sizeof(idt) - 1;
+
+    pointer.base =
+        (uint64_t)&idt[0];
 
     __asm__ volatile (
         "lidt %0"
@@ -97,19 +112,28 @@ static void idt_load(void)
 static void idt_clear(void)
 {
     for (size_t i = 0; i < 256; i++) {
-        idt[i] = (struct idt_entry) {
-            0
-        };
+        idt[i] =
+            (struct idt_entry) {
+                0
+            };
     }
 }
 
-void irq_end_of_interrupt(uint8_t irq)
+void irq_end_of_interrupt(
+    uint8_t irq
+)
 {
     if (irq >= 8) {
-        outb(0xA0, 0x20);
+        outb(
+            0xA0,
+            0x20
+        );
     }
 
-    outb(0x20, 0x20);
+    outb(
+        0x20,
+        0x20
+    );
 }
 
 void interrupts_init(void)
@@ -149,12 +173,33 @@ void interrupts_init(void)
     idt_set_gate(30, isr30);
     idt_set_gate(31, isr31);
 
-    idt_set_gate(32, irq0);
-    idt_set_gate(33, irq1);
+    /*
+     * PIC IRQs:
+     *
+     * IRQ0 -> vector 32
+     * IRQ1 -> vector 33
+     * IRQ12 -> vector 44
+     */
+    idt_set_gate(
+        32,
+        irq0
+    );
+
+    idt_set_gate(
+        33,
+        irq1
+    );
+
+    idt_set_gate(
+        44,
+        irq12
+    );
 
     idt_load();
 
-    __asm__ volatile ("sti");
+    __asm__ volatile (
+        "sti"
+    );
 }
 
 static const char* exception_name(
@@ -203,21 +248,37 @@ static const char* exception_name(
     return names[vector];
 }
 
-static void print_hex(uint64_t value)
+static void print_hex(
+    uint64_t value
+)
 {
     static const char digits[] =
         "0123456789ABCDEF";
 
-    print_str("0x");
+    print_str(
+        "0x"
+    );
 
     int started = 0;
 
-    for (int shift = 60; shift >= 0; shift -= 4) {
-        uint8_t digit =
-            (uint8_t)((value >> shift) & 0xF);
+    for (int shift = 60;
+         shift >= 0;
+         shift -= 4) {
 
-        if (digit != 0 || started || shift == 0) {
-            print_char(digits[digit]);
+        uint8_t digit =
+            (uint8_t)(
+                (value >> shift) &
+                0xF
+            );
+
+        if (digit != 0 ||
+            started ||
+            shift == 0) {
+
+            print_char(
+                digits[digit]
+            );
+
             started = 1;
         }
     }
@@ -235,22 +296,35 @@ void interrupt_dispatch(
         frame->vector <= 47) {
 
         uint8_t irq =
-            (uint8_t)(frame->vector - 32);
+            (uint8_t)(
+                frame->vector - 32
+            );
 
         if (irq == 0) {
             extern void timer_tick(void);
+
             timer_tick();
         } else if (irq == 1) {
             extern void keyboard_interrupt(void);
+
             keyboard_interrupt();
+        } else if (irq == 12) {
+            extern void mouse_interrupt(void);
+
+            mouse_interrupt();
         }
 
-        irq_end_of_interrupt(irq);
+        irq_end_of_interrupt(
+            irq
+        );
+
         return;
     }
 
     if (frame->vector < 32) {
-        __asm__ volatile ("cli");
+        __asm__ volatile (
+            "cli"
+        );
 
         print_set_color(
             PRINT_COLOR_LIGHT_RED,
@@ -265,29 +339,72 @@ void interrupt_dispatch(
             "\n"
         );
 
-        print_str("CPU EXCEPTION: ");
-        print_str(exception_name(frame->vector));
-        print_char('\n');
+        print_str(
+            "CPU EXCEPTION: "
+        );
 
-        print_str("VECTOR: ");
-        print_hex(frame->vector);
-        print_char('\n');
+        print_str(
+            exception_name(
+                frame->vector
+            )
+        );
 
-        print_str("ERROR:  ");
-        print_hex(frame->error_code);
-        print_char('\n');
+        print_char(
+            '\n'
+        );
 
-        print_str("RIP:    ");
-        print_hex(frame->rip);
-        print_char('\n');
+        print_str(
+            "VECTOR: "
+        );
 
-        print_str("RFLAGS: ");
-        print_hex(frame->rflags);
-        print_char('\n');
+        print_hex(
+            frame->vector
+        );
+
+        print_char(
+            '\n'
+        );
+
+        print_str(
+            "ERROR:  "
+        );
+
+        print_hex(
+            frame->error_code
+        );
+
+        print_char(
+            '\n'
+        );
+
+        print_str(
+            "RIP:    "
+        );
+
+        print_hex(
+            frame->rip
+        );
+
+        print_char(
+            '\n'
+        );
+
+        print_str(
+            "RFLAGS: "
+        );
+
+        print_hex(
+            frame->rflags
+        );
+
+        print_char(
+            '\n'
+        );
 
         print_str(
             "\n"
-            "The kernel has halted to prevent further corruption.\n"
+            "The kernel has halted to prevent "
+            "further corruption.\n"
         );
 
         print_set_color(
@@ -296,7 +413,9 @@ void interrupt_dispatch(
         );
 
         while (1) {
-            __asm__ volatile ("hlt");
+            __asm__ volatile (
+                "hlt"
+            );
         }
     }
 }

@@ -63,7 +63,9 @@ static uint8_t mouse_read(void)
 {
     wait_read();
 
-    return inb(PS2_DATA);
+    return inb(
+        PS2_DATA
+    );
 }
 
 static void process_packet(void)
@@ -72,7 +74,7 @@ static void process_packet(void)
         packet[0];
 
     /*
-     * Bit 3 must always be set in a valid
+     * Bit 3 is always set in a valid
      * standard PS/2 mouse packet.
      */
     if ((flags & 0x08) == 0) {
@@ -81,8 +83,7 @@ static void process_packet(void)
     }
 
     /*
-     * Overflow means the movement cannot be
-     * represented reliably.
+     * Ignore packets with X/Y overflow.
      */
     if ((flags & 0xC0) != 0) {
         packet_index = 0;
@@ -95,12 +96,20 @@ static void process_packet(void)
     int16_t dy =
         (int16_t)packet[2];
 
+    /*
+     * Sign extend X.
+     */
     if (flags & 0x10) {
-        dx |= (int16_t)0xFF00;
+        dx |=
+            (int16_t)0xFF00;
     }
 
+    /*
+     * Sign extend Y.
+     */
     if (flags & 0x20) {
-        dy |= (int16_t)0xFF00;
+        dy |=
+            (int16_t)0xFF00;
     }
 
     state.previous_buttons =
@@ -109,11 +118,21 @@ static void process_packet(void)
     state.buttons =
         flags & 0x07;
 
-    state.delta_x = dx;
-    state.delta_y = -dy;
+    state.delta_x =
+        dx;
 
-    state.x += dx;
-    state.y += -dy;
+    /*
+     * PS/2 Y movement is positive upward.
+     * Desktop coordinates are positive downward.
+     */
+    state.delta_y =
+        -dy;
+
+    state.x +=
+        dx;
+
+    state.y +=
+        -dy;
 
     if (state.x < 0) {
         state.x = 0;
@@ -128,8 +147,8 @@ static void process_packet(void)
 
 void mouse_init(void)
 {
-    state.x = 0;
-    state.y = 0;
+    state.x = 512;
+    state.y = 384;
 
     state.delta_x = 0;
     state.delta_y = 0;
@@ -151,7 +170,7 @@ void mouse_init(void)
     );
 
     /*
-     * Read the controller configuration byte.
+     * Read controller configuration byte.
      */
     wait_write();
 
@@ -164,14 +183,16 @@ void mouse_init(void)
         mouse_read();
 
     /*
-     * Enable mouse IRQ12.
+     * Enable IRQ12.
      */
-    configuration |= 0x02;
+    configuration |=
+        0x02;
 
     /*
      * Enable mouse clock.
      */
-    configuration &= (uint8_t)~0x20;
+    configuration &=
+        (uint8_t)~0x20;
 
     wait_write();
 
@@ -190,7 +211,9 @@ void mouse_init(void)
     /*
      * Reset mouse.
      */
-    mouse_write(0xFF);
+    mouse_write(
+        0xFF
+    );
 
     mouse_read();
     mouse_read();
@@ -198,36 +221,64 @@ void mouse_init(void)
     /*
      * Set defaults.
      */
-    mouse_write(0xF6);
+    mouse_write(
+        0xF6
+    );
 
     mouse_read();
 
     /*
      * Enable data reporting.
      */
-    mouse_write(0xF4);
+    mouse_write(
+        0xF4
+    );
 
     mouse_read();
+}
 
+void mouse_interrupt(void)
+{
     /*
-     * Start at the center of the display.
+     * Only read the data port when the
+     * controller reports mouse data.
+     *
+     * Bit 5 of status indicates that the
+     * byte came from the auxiliary device.
      */
-    state.x = 512;
-    state.y = 384;
+    uint8_t status =
+        inb(PS2_STATUS);
+
+    if ((status & 0x01) == 0) {
+        return;
+    }
+
+    if ((status & 0x20) == 0) {
+        return;
+    }
+
+    mouse_handle_byte(
+        inb(PS2_DATA)
+    );
 }
 
 void mouse_handle_byte(
     uint8_t value
 )
 {
+    /*
+     * Synchronize to the first byte of a
+     * standard three-byte packet.
+     */
     if (packet_index == 0 &&
         (value & 0x08) == 0) {
 
         return;
     }
 
-    packet[packet_index++] =
-        value;
+    packet[
+        packet_index++
+    ] = value;
 
     if (packet_index ==
         MOUSE_PACKET_SIZE) {

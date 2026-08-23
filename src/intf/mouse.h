@@ -16,11 +16,12 @@ struct mouse_state {
     int32_t delta_y;
 
     uint8_t buttons;
-
     uint8_t previous_buttons;
 };
 
 void mouse_init(void);
+
+void mouse_interrupt(void);
 
 void mouse_handle_byte(
     uint8_t value
