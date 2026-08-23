@@ -1,85 +1,100 @@
-KERNEL_C_DIR := src/impl/kernel
-ARCH_C_DIR := src/impl/x86_64
-ARCH_ASM_DIR := src/impl/x86_64
-
-BUILD_DIR := build
-DIST_DIR := dist/x86_64
-ISO_DIR := targets/x86_64/iso
-KERNEL_BIN := $(DIST_DIR)/kernel.bin
-KERNEL_ISO := $(DIST_DIR)/kernel.iso
+TARGET := x86_64
 
 CC := x86_64-elf-gcc
 LD := x86_64-elf-ld
 AS := nasm
 
 CFLAGS := \
+	-std=gnu11 \
 	-ffreestanding \
-	-mno-red-zone \
+	-fno-builtin \
 	-fno-stack-protector \
 	-fno-pic \
 	-fno-pie \
+	-fno-asynchronous-unwind-tables \
+	-fno-unwind-tables \
+	-fno-exceptions \
+	-mno-red-zone \
+	-mno-mmx \
+	-mno-sse \
+	-mno-sse2 \
+	-mgeneral-regs-only \
+	-O2 \
 	-Wall \
 	-Wextra \
+	-Werror \
 	-I src/intf
 
 LDFLAGS := \
 	-n \
+	-z max-page-size=0x1000 \
 	-T targets/x86_64/linker.ld
 
-KERNEL_SOURCES := $(shell find $(KERNEL_C_DIR) -name '*.c')
-ARCH_C_SOURCES := $(shell find $(ARCH_C_DIR) -name '*.c')
-ARCH_ASM_SOURCES := $(shell find $(ARCH_ASM_DIR) -name '*.asm')
+BUILD_DIR := build
+DIST_DIR := dist/x86_64
+ISO_DIR := targets/x86_64/iso
 
-KERNEL_OBJECTS := $(patsubst $(KERNEL_C_DIR)/%.c,$(BUILD_DIR)/kernel/%.o,$(KERNEL_SOURCES))
-ARCH_C_OBJECTS := $(patsubst $(ARCH_C_DIR)/%.c,$(BUILD_DIR)/x86_64/%.o,$(ARCH_C_SOURCES))
-ARCH_ASM_OBJECTS := $(patsubst $(ARCH_ASM_DIR)/%.asm,$(BUILD_DIR)/x86_64/%.o,$(ARCH_ASM_SOURCES))
+KERNEL_BIN := $(DIST_DIR)/kernel.bin
+KERNEL_ISO := $(DIST_DIR)/kernel.iso
 
-OBJECTS := \
-	$(KERNEL_OBJECTS) \
-	$(ARCH_C_OBJECTS) \
-	$(ARCH_ASM_OBJECTS)
+C_SOURCES := $(shell find src -type f -name '*.c')
+ASM_SOURCES := $(shell find src -type f -name '*.asm')
 
-.PHONY: all
+C_OBJECTS := $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(C_SOURCES))
+ASM_OBJECTS := $(patsubst src/%.asm,$(BUILD_DIR)/%.o,$(ASM_SOURCES))
+
+OBJECTS := $(C_OBJECTS) $(ASM_OBJECTS)
+
+.PHONY: all build-x86_64 clean run
+
 all: build-x86_64
 
-.PHONY: build-x86_64
 build-x86_64: $(KERNEL_ISO)
-
-$(KERNEL_ISO): $(KERNEL_BIN)
-	mkdir -p $(DIST_DIR)
-	cp $(KERNEL_BIN) $(ISO_DIR)/boot/kernel.bin
-	grub-mkrescue -o $(KERNEL_ISO) $(ISO_DIR)
 
 $(KERNEL_BIN): $(OBJECTS)
 	mkdir -p $(DIST_DIR)
-	$(LD) $(LDFLAGS) -o $@ $(OBJECTS)
 
-$(BUILD_DIR)/kernel/%.o: $(KERNEL_C_DIR)/%.c
+	$(LD) $(LDFLAGS) \
+		-Map=$(DIST_DIR)/kernel.map \
+		-o $@ \
+		$(OBJECTS)
+
+$(KERNEL_ISO): $(KERNEL_BIN)
+	mkdir -p $(ISO_DIR)/boot
+
+	cp $(KERNEL_BIN) \
+		$(ISO_DIR)/boot/kernel.bin
+
+	grub-file \
+		--is-x86-multiboot2 \
+		$(KERNEL_BIN)
+
+	grub-mkrescue \
+		-o $@ \
+		$(ISO_DIR)
+
+$(BUILD_DIR)/%.o: src/%.c
 	mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/x86_64/%.o: $(ARCH_C_DIR)/%.c
+	$(CC) $(CFLAGS) \
+		-c $< \
+		-o $@
+
+$(BUILD_DIR)/%.o: src/%.asm
 	mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/x86_64/%.o: $(ARCH_ASM_DIR)/%.asm
-	mkdir -p $(dir $@)
-	$(AS) -f elf64 $< -o $@
+	$(AS) -f elf64 \
+		$< \
+		-o $@
 
-.PHONY: clean
 clean:
-	rm -rf $(BUILD_DIR) $(DIST_DIR)
+	rm -rf $(BUILD_DIR)
+	rm -rf $(DIST_DIR)
 
-.PHONY: rebuild
-rebuild: clean build-x86_64
+	rm -f \
+		targets/x86_64/iso/boot/kernel.bin
 
-.PHONY: run
-run: build-x86_64
-	qemu-system-x86_64 -cdrom $(KERNEL_ISO)
-
-.PHONY: run-debug
-run-debug: build-x86_64
+run: $(KERNEL_ISO)
 	qemu-system-x86_64 \
 		-cdrom $(KERNEL_ISO) \
-		-no-reboot \
-		-no-shutdown
+		-m 256M

@@ -23,10 +23,9 @@ enum {
 };
 
 void print_clear(void);
-
 void print_char(char character);
-
 void print_str(const char* string);
+void print_backspace(void);
 
 void print_set_color(
     uint8_t foreground,

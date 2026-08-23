@@ -1,14 +1,22 @@
 #include "shell.h"
-#include "print.h"
+
 #include "keyboard.h"
+#include "print.h"
+#include "rtc.h"
+#include "timer.h"
 
-#define COMMAND_MAX_LENGTH 55
+#define COMMAND_MAX_LENGTH 128
 
-static int string_equals(const char* a, const char* b)
+static int string_equals(
+    const char* a,
+    const char* b
+)
 {
     size_t i = 0;
 
-    while (a[i] != '\0' && b[i] != '\0') {
+    while (a[i] != '\0' &&
+           b[i] != '\0') {
+
         if (a[i] != b[i]) {
             return 0;
         }
@@ -16,67 +24,104 @@ static int string_equals(const char* a, const char* b)
         i++;
     }
 
-    return a[i] == '\0' && b[i] == '\0';
+    return a[i] == '\0' &&
+           b[i] == '\0';
 }
 
-static void print_banner(void)
+static int string_starts_with(
+    const char* string,
+    const char* prefix
+)
 {
-    print_clear();
+    size_t i = 0;
 
-    print_set_color(
-        PRINT_COLOR_RED,
-        PRINT_COLOR_BLACK
-    );
+    while (prefix[i] != '\0') {
+        if (string[i] != prefix[i]) {
+            return 0;
+        }
 
-    print_str(
-        "============================================================\n"
-        "                 FAZBEAR ENTERTAINMENT\n"
-        "                    FAZBEAR OS v0.1\n"
-        "============================================================\n"
-    );
+        i++;
+    }
 
-    print_set_color(
-        PRINT_COLOR_LIGHT_GRAY,
-        PRINT_COLOR_BLACK
-    );
+    return 1;
+}
 
-    print_str(
-        "\n"
-        "Welcome, night employee.\n"
-        "\n"
-    );
+static void print_number(
+    uint64_t value
+)
+{
+    char buffer[32];
+    size_t length = 0;
 
-    print_set_color(
-        PRINT_COLOR_YELLOW,
-        PRINT_COLOR_BLACK
-    );
+    if (value == 0) {
+        print_char('0');
+        return;
+    }
 
-    print_str(
-        "NOTICE: The animatronic control systems are currently\n"
-        "operating in DEVELOPMENT MODE.\n"
-        "\n"
-    );
+    while (value != 0) {
+        buffer[length++] =
+            (char)(
+                '0' +
+                (value % 10)
+            );
 
+        value /= 10;
+    }
+
+    while (length > 0) {
+        print_char(buffer[--length]);
+    }
+}
+
+static void print_hex(
+    uint64_t value
+)
+{
+    static const char digits[] =
+        "0123456789ABCDEF";
+
+    print_str("0x");
+
+    int started = 0;
+
+    for (int shift = 60;
+         shift >= 0;
+         shift -= 4) {
+
+        uint8_t digit =
+            (uint8_t)(
+                (value >> shift) & 0xF
+            );
+
+        if (digit != 0 ||
+            started ||
+            shift == 0) {
+
+            print_char(digits[digit]);
+
+            started = 1;
+        }
+    }
+}
+
+static void shell_prompt(void)
+{
     print_set_color(
         PRINT_COLOR_LIGHT_GREEN,
         PRINT_COLOR_BLACK
     );
 
-    print_str(
-        "Type 'help' for available commands.\n"
-        "\n"
-    );
+    print_str("root");
 
     print_set_color(
-        PRINT_COLOR_WHITE,
+        PRINT_COLOR_DARK_GRAY,
         PRINT_COLOR_BLACK
     );
-}
 
-static void print_prompt(void)
-{
+    print_str("@");
+
     print_set_color(
-        PRINT_COLOR_RED,
+        PRINT_COLOR_LIGHT_BLUE,
         PRINT_COLOR_BLACK
     );
 
@@ -87,362 +132,341 @@ static void print_prompt(void)
         PRINT_COLOR_BLACK
     );
 
-    print_str("@");
-
-    print_set_color(
-        PRINT_COLOR_YELLOW,
-        PRINT_COLOR_BLACK
-    );
-
-    print_str("security");
-
-    print_set_color(
-        PRINT_COLOR_DARK_GRAY,
-        PRINT_COLOR_BLACK
-    );
-
     print_str(":");
 
     print_set_color(
-        PRINT_COLOR_LIGHT_BLUE,
+        PRINT_COLOR_WHITE,
         PRINT_COLOR_BLACK
     );
 
     print_str("/");
 
     print_set_color(
-        PRINT_COLOR_WHITE,
+        PRINT_COLOR_DARK_GRAY,
         PRINT_COLOR_BLACK
     );
 
     print_str("> ");
-}
-
-static void command_help(void)
-{
-    print_set_color(
-        PRINT_COLOR_YELLOW,
-        PRINT_COLOR_BLACK
-    );
-
-    print_str("FAZBEAR OS COMMAND DIRECTORY\n\n");
-
-    print_set_color(
-        PRINT_COLOR_WHITE,
-        PRINT_COLOR_BLACK
-    );
-
-    print_str(
-        "  help       Show this command list\n"
-        "  clear      Clear the terminal\n"
-        "  about      Display system information\n"
-        "  status     Display facility status\n"
-        "  lore       Display a restricted message\n"
-        "  night      Start Night Shift mode\n"
-        "  freddy     Check Freddy Fazbear\n"
-        "  bonnie     Check Bonnie\n"
-        "  chica      Check Chica\n"
-        "  foxy       Check Foxy\n"
-        "  reboot     Restart the machine\n"
-        "\n"
-    );
-}
-
-static void command_about(void)
-{
-    print_set_color(
-        PRINT_COLOR_LIGHT_CYAN,
-        PRINT_COLOR_BLACK
-    );
-
-    print_str("FAZBEAR OS\n\n");
-
-    print_set_color(
-        PRINT_COLOR_WHITE,
-        PRINT_COLOR_BLACK
-    );
-
-    print_str(
-        "Name:        FazbearOS\n"
-        "Version:     0.1.0-nightshift\n"
-        "Architecture:x86_64\n"
-        "Kernel:      Fazbear Kernel\n"
-        "Boot:        Multiboot2\n"
-        "Display:     VGA Text Mode\n"
-        "Input:       PS/2 Keyboard\n"
-        "Memory:      Early bootstrap paging\n"
-        "\n"
-        "Purpose:     Entertainment and security systems\n"
-        "Status:      EXTREMELY EXPERIMENTAL\n"
-        "\n"
-    );
-}
-
-static void command_status(void)
-{
-    print_set_color(
-        PRINT_COLOR_LIGHT_GREEN,
-        PRINT_COLOR_BLACK
-    );
-
-    print_str("FACILITY STATUS\n\n");
-
-    print_set_color(
-        PRINT_COLOR_WHITE,
-        PRINT_COLOR_BLACK
-    );
-
-    print_str(
-        "Power systems .............. ONLINE\n"
-        "Main terminal .............. ONLINE\n"
-        "Security network ........... ONLINE\n"
-        "Camera network ............. STANDBY\n"
-        "Door control ............... STANDBY\n"
-        "Animatronic controller ..... ACTIVE\n"
-        "Night shift protocol ....... ARMED\n"
-        "\n"
-    );
-
-    print_set_color(
-        PRINT_COLOR_RED,
-        PRINT_COLOR_BLACK
-    );
-
-    print_str(
-        "WARNING: Motion detected in restricted area.\n"
-        "\n"
-    );
-
-    print_set_color(
-        PRINT_COLOR_WHITE,
-        PRINT_COLOR_BLACK
-    );
-}
-
-static void command_lore(void)
-{
-    print_set_color(
-        PRINT_COLOR_RED,
-        PRINT_COLOR_BLACK
-    );
-
-    print_str("RESTRICTED FILE\n\n");
 
     print_set_color(
         PRINT_COLOR_LIGHT_GRAY,
         PRINT_COLOR_BLACK
     );
-
-    print_str(
-        "The restaurant was supposed to be closed.\n"
-        "\n"
-        "The cameras disagree.\n"
-        "\n"
-        "Management has requested that employees do not\n"
-        "investigate unusual movement after midnight.\n"
-        "\n"
-        "If an animatronic is standing somewhere it should\n"
-        "not be standing, do not approach it.\n"
-        "\n"
-        "If you hear music, check the cameras.\n"
-        "\n"
-        "If the cameras stop working...\n"
-        "\n"
-    );
-
-    print_set_color(
-        PRINT_COLOR_RED,
-        PRINT_COLOR_BLACK
-    );
-
-    print_str(
-        "DO NOT LEAVE THE OFFICE.\n"
-        "\n"
-    );
-
-    print_set_color(
-        PRINT_COLOR_WHITE,
-        PRINT_COLOR_BLACK
-    );
 }
 
-static void command_freddy(void)
+static void command_help(void)
 {
-    print_set_color(
-        PRINT_COLOR_BROWN,
-        PRINT_COLOR_BLACK
-    );
+    const char* lines[] = {
+        "",
+        "FazbearOS command reference",
+        "============================",
+        "",
+        "SYSTEM",
+        "  help       Show command reference",
+        "  clear      Clear the terminal",
+        "  version    Show OS version",
+        "  uptime     Show system uptime",
+        "  cpu        Show processor information",
+        "  date       Show system date/time",
+        "  reboot     Restart the machine",
+        "  shutdown   Halt the machine",
+        "",
+        "TERMINAL",
+        "  echo       Print text",
+        "  sleep      Wait for milliseconds",
+        "",
+        "Type a command followed by ENTER.",
+        ""
+    };
 
-    print_str(
-        "FREDDY FAZBEAR\n\n"
-    );
+    size_t line_count =
+        sizeof(lines) / sizeof(lines[0]);
 
-    print_set_color(
-        PRINT_COLOR_WHITE,
-        PRINT_COLOR_BLACK
-    );
+    for (size_t i = 0;
+         i < line_count;
+         i++) {
 
-    print_str(
-        "Location: UNKNOWN\n"
-        "Status:   ACTIVE\n"
-        "Threat:   ???\n"
-        "\n"
-        "Freddy is currently not visible on the office cameras.\n"
-        "\n"
-    );
+        print_str(lines[i]);
+        print_char('\n');
+    }
 }
 
-static void command_bonnie(void)
+static void command_version(void)
 {
-    print_set_color(
-        PRINT_COLOR_LIGHT_BLUE,
-        PRINT_COLOR_BLACK
-    );
-
     print_str(
-        "BONNIE\n\n"
-    );
-
-    print_set_color(
-        PRINT_COLOR_WHITE,
-        PRINT_COLOR_BLACK
-    );
-
-    print_str(
-        "Location: WEST HALL\n"
-        "Status:   MOVING\n"
-        "Threat:   HIGH\n"
-        "\n"
-        "Recommendation: Monitor the left door.\n"
+        "FazbearOS 0.3.0\n"
+        "Architecture: x86_64\n"
+        "Kernel:      monolithic\n"
+        "Boot:        Multiboot2\n"
+        "Interrupts:  IDT + PIC\n"
+        "Timer:       PIT\n"
+        "Keyboard:    PS/2 IRQ1\n"
         "\n"
     );
 }
 
-static void command_chica(void)
+static void command_uptime(void)
 {
-    print_set_color(
-        PRINT_COLOR_YELLOW,
-        PRINT_COLOR_BLACK
-    );
+    uint64_t ticks = timer_ticks();
 
-    print_str(
-        "CHICA\n\n"
-    );
+    uint64_t seconds =
+        timer_uptime_seconds();
 
-    print_set_color(
-        PRINT_COLOR_WHITE,
-        PRINT_COLOR_BLACK
-    );
+    uint64_t hours =
+        seconds / 3600;
 
-    print_str(
-        "Location: EAST HALL\n"
-        "Status:   ACTIVE\n"
-        "Threat:   HIGH\n"
-        "\n"
-        "Recommendation: Monitor the right door.\n"
-        "\n"
-    );
+    uint64_t minutes =
+        (seconds % 3600) / 60;
+
+    uint64_t remaining_seconds =
+        seconds % 60;
+
+    print_str("Uptime: ");
+
+    print_number(hours);
+    print_str("h ");
+
+    print_number(minutes);
+    print_str("m ");
+
+    print_number(remaining_seconds);
+    print_str("s");
+
+    print_str(" (");
+
+    print_number(ticks);
+
+    print_str(" timer ticks)\n");
 }
 
-static void command_foxy(void)
+static void command_cpu(void)
 {
-    print_set_color(
-        PRINT_COLOR_LIGHT_RED,
-        PRINT_COLOR_BLACK
+    uint32_t eax;
+    uint32_t ebx;
+    uint32_t ecx;
+    uint32_t edx;
+
+    __asm__ volatile (
+        "cpuid"
+        : "=a"(eax),
+          "=b"(ebx),
+          "=c"(ecx),
+          "=d"(edx)
+        : "a"(0)
     );
 
-    print_str(
-        "FOXY\n\n"
+    char vendor[13];
+
+    vendor[0] =
+        (char)(ebx & 0xFF);
+
+    vendor[1] =
+        (char)((ebx >> 8) & 0xFF);
+
+    vendor[2] =
+        (char)((ebx >> 16) & 0xFF);
+
+    vendor[3] =
+        (char)((ebx >> 24) & 0xFF);
+
+    vendor[4] =
+        (char)(edx & 0xFF);
+
+    vendor[5] =
+        (char)((edx >> 8) & 0xFF);
+
+    vendor[6] =
+        (char)((edx >> 16) & 0xFF);
+
+    vendor[7] =
+        (char)((edx >> 24) & 0xFF);
+
+    vendor[8] =
+        (char)(ecx & 0xFF);
+
+    vendor[9] =
+        (char)((ecx >> 8) & 0xFF);
+
+    vendor[10] =
+        (char)((ecx >> 16) & 0xFF);
+
+    vendor[11] =
+        (char)((ecx >> 24) & 0xFF);
+
+    vendor[12] = '\0';
+
+    print_str("CPU vendor: ");
+    print_str(vendor);
+    print_char('\n');
+
+    print_str("CPUID max leaf: ");
+    print_hex(eax);
+    print_char('\n');
+
+    __asm__ volatile (
+        "cpuid"
+        : "=a"(eax),
+          "=b"(ebx),
+          "=c"(ecx),
+          "=d"(edx)
+        : "a"(1)
     );
 
-    print_set_color(
-        PRINT_COLOR_WHITE,
-        PRINT_COLOR_BLACK
-    );
+    print_str("Features:");
 
-    print_str(
-        "Location: PIRATE COVE\n"
-        "Status:   UNKNOWN\n"
-        "Threat:   CRITICAL\n"
-        "\n"
-        "Recommendation: Check Pirate Cove immediately.\n"
-        "\n"
-    );
+    if (edx & (1u << 4)) {
+        print_str(" TSC");
+    }
+
+    if (edx & (1u << 5)) {
+        print_str(" MSR");
+    }
+
+    if (edx & (1u << 9)) {
+        print_str(" APIC");
+    }
+
+    if (edx & (1u << 25)) {
+        print_str(" SSE");
+    }
+
+    if (edx & (1u << 26)) {
+        print_str(" SSE2");
+    }
+
+    print_char('\n');
 }
 
-static void command_night(void)
+static void command_date(void)
 {
-    print_clear();
+    struct rtc_datetime datetime;
 
-    print_set_color(
-        PRINT_COLOR_RED,
-        PRINT_COLOR_BLACK
-    );
+    rtc_read(&datetime);
 
-    print_str(
-        "************************************************************\n"
-        "*                      NIGHT SHIFT                          *\n"
-        "************************************************************\n"
-        "\n"
-    );
+    print_number(datetime.year);
 
-    print_set_color(
-        PRINT_COLOR_WHITE,
-        PRINT_COLOR_BLACK
-    );
+    print_char('-');
 
-    print_str(
-        "12:00 AM\n"
-        "\n"
-        "The restaurant is closed.\n"
-        "You are alone in the security office.\n"
-        "\n"
-    );
+    if (datetime.month < 10) {
+        print_char('0');
+    }
 
-    print_set_color(
-        PRINT_COLOR_YELLOW,
-        PRINT_COLOR_BLACK
-    );
+    print_number(datetime.month);
 
-    print_str(
-        "POWER: 100%\n"
-        "\n"
-    );
+    print_char('-');
 
-    print_set_color(
-        PRINT_COLOR_LIGHT_GREEN,
-        PRINT_COLOR_BLACK
-    );
+    if (datetime.day < 10) {
+        print_char('0');
+    }
 
-    print_str(
-        "CAMERAS: ONLINE\n"
-        "DOORS: CLOSED\n"
-        "\n"
-    );
+    print_number(datetime.day);
 
-    print_set_color(
-        PRINT_COLOR_RED,
-        PRINT_COLOR_BLACK
-    );
+    print_char(' ');
 
-    print_str(
-        "Something moved.\n"
-        "\n"
-    );
+    if (datetime.hour < 10) {
+        print_char('0');
+    }
 
-    print_set_color(
-        PRINT_COLOR_WHITE,
-        PRINT_COLOR_BLACK
-    );
+    print_number(datetime.hour);
 
-    print_str(
-        "Night Shift mode is only a preview for now.\n"
-        "The real security system is coming.\n"
-        "\n"
-    );
+    print_char(':');
+
+    if (datetime.minute < 10) {
+        print_char('0');
+    }
+
+    print_number(datetime.minute);
+
+    print_char(':');
+
+    if (datetime.second < 10) {
+        print_char('0');
+    }
+
+    print_number(datetime.second);
+
+    print_char('\n');
 }
 
-static void execute_command(const char* command)
+static void command_echo(
+    const char* text
+)
+{
+    print_str(text);
+    print_char('\n');
+}
+
+static void command_sleep(
+    const char* argument
+)
+{
+    uint64_t milliseconds = 0;
+
+    if (argument[0] == '\0') {
+        print_str(
+            "usage: sleep <milliseconds>\n"
+        );
+
+        return;
+    }
+
+    for (size_t i = 0;
+         argument[i] != '\0';
+         i++) {
+
+        if (argument[i] < '0' ||
+            argument[i] > '9') {
+
+            print_str(
+                "usage: sleep <milliseconds>\n"
+            );
+
+            return;
+        }
+
+        milliseconds =
+            milliseconds * 10 +
+            (uint64_t)(
+                argument[i] - '0'
+            );
+    }
+
+    print_str("Sleeping for ");
+
+    print_number(milliseconds);
+
+    print_str(" ms...\n");
+
+    timer_sleep(milliseconds);
+
+    print_str("Done.\n");
+}
+
+static void command_reboot(void)
+{
+    print_str(
+        "Rebooting...\n"
+    );
+
+    keyboard_reboot();
+}
+
+static void command_shutdown(void)
+{
+    print_str(
+        "System halted.\n"
+    );
+
+    __asm__ volatile ("cli");
+
+    while (1) {
+        __asm__ volatile ("hlt");
+    }
+}
+
+static void execute_command(
+    const char* command
+)
 {
     if (string_equals(command, "")) {
         return;
@@ -458,57 +482,43 @@ static void execute_command(const char* command)
         return;
     }
 
-    if (string_equals(command, "about")) {
-        command_about();
+    if (string_equals(command, "version")) {
+        command_version();
         return;
     }
 
-    if (string_equals(command, "status")) {
-        command_status();
+    if (string_equals(command, "uptime")) {
+        command_uptime();
         return;
     }
 
-    if (string_equals(command, "lore")) {
-        command_lore();
+    if (string_equals(command, "cpu")) {
+        command_cpu();
         return;
     }
 
-    if (string_equals(command, "night")) {
-        command_night();
-        return;
-    }
-
-    if (string_equals(command, "freddy")) {
-        command_freddy();
-        return;
-    }
-
-    if (string_equals(command, "bonnie")) {
-        command_bonnie();
-        return;
-    }
-
-    if (string_equals(command, "chica")) {
-        command_chica();
-        return;
-    }
-
-    if (string_equals(command, "foxy")) {
-        command_foxy();
+    if (string_equals(command, "date")) {
+        command_date();
         return;
     }
 
     if (string_equals(command, "reboot")) {
-        print_set_color(
-            PRINT_COLOR_RED,
-            PRINT_COLOR_BLACK
-        );
+        command_reboot();
+        return;
+    }
 
-        print_str(
-            "Rebooting FazbearOS...\n"
-        );
+    if (string_equals(command, "shutdown")) {
+        command_shutdown();
+        return;
+    }
 
-        keyboard_reboot();
+    if (string_starts_with(command, "echo ")) {
+        command_echo(&command[5]);
+        return;
+    }
+
+    if (string_starts_with(command, "sleep ")) {
+        command_sleep(&command[6]);
         return;
     }
 
@@ -517,7 +527,7 @@ static void execute_command(const char* command)
         PRINT_COLOR_BLACK
     );
 
-    print_str("fazbear: command not found: ");
+    print_str("unknown command: ");
 
     print_set_color(
         PRINT_COLOR_WHITE,
@@ -527,27 +537,55 @@ static void execute_command(const char* command)
     print_str(command);
 
     print_str(
-        "\n"
-        "Type 'help' to see available commands.\n"
-        "\n"
+        "\nType 'help' for a list of commands.\n"
+    );
+
+    print_set_color(
+        PRINT_COLOR_LIGHT_GRAY,
+        PRINT_COLOR_BLACK
     );
 }
 
 void shell_start(void)
 {
     char command[COMMAND_MAX_LENGTH + 1];
-    size_t length;
 
-    print_banner();
+    print_set_color(
+        PRINT_COLOR_LIGHT_CYAN,
+        PRINT_COLOR_BLACK
+    );
+
+    print_str(
+        "FazbearOS\n"
+        "=========\n"
+    );
+
+    print_set_color(
+        PRINT_COLOR_LIGHT_GRAY,
+        PRINT_COLOR_BLACK
+    );
+
+    print_str(
+        "Kernel initialized successfully.\n"
+        "Hardware interrupts enabled.\n"
+        "\n"
+    );
+
+    print_str(
+        "Type 'help' for available commands.\n"
+        "\n"
+    );
 
     while (1) {
-        length = 0;
+        size_t length = 0;
+
         command[0] = '\0';
 
-        print_prompt();
+        shell_prompt();
 
         while (1) {
-            char character = keyboard_get_char();
+            char character =
+                keyboard_get_char();
 
             if (character == '\n') {
                 print_char('\n');
@@ -562,18 +600,26 @@ void shell_start(void)
             if (character == '\b') {
                 if (length > 0) {
                     length--;
+
                     command[length] = '\0';
+
                     print_backspace();
                 }
 
                 continue;
             }
 
-            if (character == '\t') {
+            /*
+             * The keyboard driver reserves 1-4 for
+             * future cursor/navigation handling.
+             */
+            if (character >= 1 &&
+                character <= 4) {
                 continue;
             }
 
-            if (character < 32 || character > 126) {
+            if (character < 32 ||
+                character > 126) {
                 continue;
             }
 
@@ -581,8 +627,8 @@ void shell_start(void)
                 continue;
             }
 
-            command[length] = character;
-            length++;
+            command[length++] =
+                character;
 
             command[length] = '\0';
 

@@ -1,29 +1,17 @@
 #include "keyboard.h"
+#include "io.h"
 
-static inline uint8_t inb(uint16_t port)
-{
-    uint8_t value;
+#define KEYBOARD_BUFFER_SIZE 256
 
-    __asm__ volatile (
-        "inb %1, %0"
-        : "=a"(value)
-        : "Nd"(port)
-    );
+static volatile char buffer[KEYBOARD_BUFFER_SIZE];
 
-    return value;
-}
+static volatile uint16_t buffer_read = 0;
+static volatile uint16_t buffer_write = 0;
 
-static inline void outb(uint16_t port, uint8_t value)
-{
-    __asm__ volatile (
-        "outb %0, %1"
-        :
-        : "a"(value), "Nd"(port)
-    );
-}
+static volatile int shift_pressed = 0;
+static volatile int extended_scancode = 0;
 
 static const char normal_map[128] = {
-    [0x01] = 0,
     [0x02] = '1',
     [0x03] = '2',
     [0x04] = '3',
@@ -79,7 +67,7 @@ static const char normal_map[128] = {
     [0x34] = '.',
     [0x35] = '/',
 
-    [0x39] = ' ',
+    [0x39] = ' '
 };
 
 static const char shifted_map[128] = {
@@ -135,60 +123,137 @@ static const char shifted_map[128] = {
     [0x34] = '>',
     [0x35] = '?',
 
-    [0x39] = ' ',
+    [0x39] = ' '
 };
+
+static void buffer_push(char character)
+{
+    uint16_t next =
+        (uint16_t)(
+            (buffer_write + 1) %
+            KEYBOARD_BUFFER_SIZE
+        );
+
+    if (next == buffer_read) {
+        return;
+    }
+
+    buffer[buffer_write] = character;
+
+    buffer_write = next;
+}
+
+void keyboard_init(void)
+{
+    buffer_read = 0;
+    buffer_write = 0;
+
+    shift_pressed = 0;
+    extended_scancode = 0;
+
+    /*
+     * Enable keyboard IRQ generation.
+     */
+    uint8_t command = inb(0x64);
+
+    if ((command & 1) == 0) {
+        /*
+         * The keyboard controller command byte
+         * is configured below only when needed.
+         */
+    }
+
+    outb(0x64, 0xAE);
+}
+
+void keyboard_interrupt(void)
+{
+    uint8_t scancode = inb(0x60);
+
+    if (scancode == 0xE0) {
+        extended_scancode = 1;
+        return;
+    }
+
+    if (scancode == 0x2A ||
+        scancode == 0x36) {
+
+        shift_pressed = 1;
+        return;
+    }
+
+    if (scancode == 0xAA ||
+        scancode == 0xB6) {
+
+        shift_pressed = 0;
+        return;
+    }
+
+    /*
+     * Ignore key-release events.
+     */
+    if (scancode & 0x80) {
+        extended_scancode = 0;
+        return;
+    }
+
+    if (extended_scancode) {
+        /*
+         * Arrow keys and other extended keys will be
+         * exposed as escape sequences later.
+         */
+        if (scancode == 0x48) {
+            buffer_push('\x01');
+        } else if (scancode == 0x50) {
+            buffer_push('\x02');
+        } else if (scancode == 0x4B) {
+            buffer_push('\x03');
+        } else if (scancode == 0x4D) {
+            buffer_push('\x04');
+        }
+
+        extended_scancode = 0;
+
+        return;
+    }
+
+    if (scancode >= 128) {
+        return;
+    }
+
+    char character;
+
+    if (shift_pressed) {
+        character = shifted_map[scancode];
+    } else {
+        character = normal_map[scancode];
+    }
+
+    if (character != 0) {
+        buffer_push(character);
+    }
+}
+
+int keyboard_available(void)
+{
+    return buffer_read != buffer_write;
+}
 
 char keyboard_get_char(void)
 {
-    static int shift = 0;
-    static int extended = 0;
-
-    while (1) {
-        if ((inb(0x64) & 1) == 0) {
-            continue;
-        }
-
-        uint8_t scancode = inb(0x60);
-
-        if (scancode == 0xE0) {
-            extended = 1;
-            continue;
-        }
-
-        if (scancode == 0x2A || scancode == 0x36) {
-            shift = 1;
-            continue;
-        }
-
-        if (scancode == 0xAA || scancode == 0xB6) {
-            shift = 0;
-            continue;
-        }
-
-        if (scancode & 0x80) {
-            extended = 0;
-            continue;
-        }
-
-        if (extended) {
-            extended = 0;
-            continue;
-        }
-
-        if (scancode >= 128) {
-            continue;
-        }
-
-        if (shift) {
-            if (shifted_map[scancode] != 0) {
-                return shifted_map[scancode];
-            }
-        } else {
-            if (normal_map[scancode] != 0) {
-                return normal_map[scancode];
-            }
-        }
+    while (!keyboard_available()) {
+        __asm__ volatile ("hlt");
     }
+
+    char character = buffer[buffer_read];
+
+    buffer_read =
+        (uint16_t)(
+            (buffer_read + 1) %
+            KEYBOARD_BUFFER_SIZE
+        );
+
+    return character;
 }
 
 void keyboard_reboot(void)
@@ -201,7 +266,7 @@ void keyboard_reboot(void)
 
     outb(0x64, 0xFE);
 
-    while (1) {
-        __asm__ volatile ("hlt");
+    for (;;) {
+        __asm__ volatile ("cli; hlt");
     }
 }

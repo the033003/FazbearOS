@@ -1,11 +1,15 @@
-FROM randomdude/gcc-cross-x86_64-elf
+FROM brett/gcc-cross-x86_64-elf:latest
 
-RUN apt-get update 
-RUN apt-get upgrade -y
-RUN apt-get install -y nasm
-RUN apt-get install -y xorriso
-RUN apt-get install -y grub-pc-bin
-RUN apt-get install -y grub-common
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        make \
+        nasm \
+        xorriso \
+        grub-common \
+        grub-pc-bin \
+    && rm -rf /var/lib/apt/lists/*
 
 VOLUME /root/env
 WORKDIR /root/env
