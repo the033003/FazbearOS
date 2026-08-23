@@ -3,507 +3,485 @@
 #include <stddef.h>
 #include <stdint.h>
 
-static struct framebuffer framebuffer;
-
-static int framebuffer_ready;
-
-static uint8_t font[128][8] = {
-    [0x20] = {
-        0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00
-    },
-
-    [0x21] = {
-        0x18, 0x18, 0x18, 0x18,
-        0x18, 0x00, 0x18, 0x00
-    },
-
-    [0x2D] = {
-        0x00, 0x00, 0x00, 0x7E,
-        0x00, 0x00, 0x00, 0x00
-    },
-
-    [0x2E] = {
-        0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x18, 0x00
-    },
-
-    [0x2F] = {
-        0x06, 0x0C, 0x18, 0x30,
-        0x60, 0xC0, 0x80, 0x00
-    },
-
-    [0x30] = {
-        0x3C, 0x66, 0x6E, 0x76,
-        0x66, 0x66, 0x3C, 0x00
-    },
-
-    [0x31] = {
-        0x18, 0x38, 0x18, 0x18,
-        0x18, 0x18, 0x7E, 0x00
-    },
-
-    [0x32] = {
-        0x3C, 0x66, 0x06, 0x0C,
-        0x18, 0x30, 0x7E, 0x00
-    },
-
-    [0x33] = {
-        0x3C, 0x66, 0x06, 0x1C,
-        0x06, 0x66, 0x3C, 0x00
-    },
-
-    [0x34] = {
-        0x0C, 0x1C, 0x3C, 0x6C,
-        0x7E, 0x0C, 0x0C, 0x00
-    },
-
-    [0x35] = {
-        0x7E, 0x60, 0x7C, 0x06,
-        0x06, 0x66, 0x3C, 0x00
-    },
-
-    [0x36] = {
-        0x1C, 0x30, 0x60, 0x7C,
-        0x66, 0x66, 0x3C, 0x00
-    },
-
-    [0x37] = {
-        0x7E, 0x06, 0x0C, 0x18,
-        0x30, 0x30, 0x30, 0x00
-    },
-
-    [0x38] = {
-        0x3C, 0x66, 0x66, 0x3C,
-        0x66, 0x66, 0x3C, 0x00
-    },
-
-    [0x39] = {
-        0x3C, 0x66, 0x66, 0x3E,
-        0x06, 0x0C, 0x38, 0x00
-    },
-
-    [0x3A] = {
-        0x00, 0x18, 0x18, 0x00,
-        0x00, 0x18, 0x18, 0x00
-    },
-
-    [0x3F] = {
-        0x3C, 0x66, 0x06, 0x0C,
-        0x18, 0x00, 0x18, 0x00
-    },
-
-    [0x41] = {
-        0x18, 0x3C, 0x66, 0x66,
-        0x7E, 0x66, 0x66, 0x00
-    },
-
-    [0x42] = {
-        0x7C, 0x66, 0x66, 0x7C,
-        0x66, 0x66, 0x7C, 0x00
-    },
-
-    [0x43] = {
-        0x3C, 0x66, 0x60, 0x60,
-        0x60, 0x66, 0x3C, 0x00
-    },
-
-    [0x44] = {
-        0x78, 0x6C, 0x66, 0x66,
-        0x66, 0x6C, 0x78, 0x00
-    },
-
-    [0x45] = {
-        0x7E, 0x60, 0x60, 0x7C,
-        0x60, 0x60, 0x7E, 0x00
-    },
-
-    [0x46] = {
-        0x7E, 0x60, 0x60, 0x7C,
-        0x60, 0x60, 0x60, 0x00
-    },
-
-    [0x47] = {
-        0x3C, 0x66, 0x60, 0x6E,
-        0x66, 0x66, 0x3C, 0x00
-    },
-
-    [0x48] = {
-        0x66, 0x66, 0x66, 0x7E,
-        0x66, 0x66, 0x66, 0x00
-    },
-
-    [0x49] = {
-        0x3C, 0x18, 0x18, 0x18,
-        0x18, 0x18, 0x3C, 0x00
-    },
-
-    [0x4A] = {
-        0x1E, 0x0C, 0x0C, 0x0C,
-        0x0C, 0x6C, 0x38, 0x00
-    },
-
-    [0x4B] = {
-        0x66, 0x6C, 0x78, 0x70,
-        0x78, 0x6C, 0x66, 0x00
-    },
-
-    [0x4C] = {
-        0x60, 0x60, 0x60, 0x60,
-        0x60, 0x60, 0x7E, 0x00
-    },
-
-    [0x4D] = {
-        0x63, 0x77, 0x7F, 0x6B,
-        0x63, 0x63, 0x63, 0x00
-    },
-
-    [0x4E] = {
-        0x66, 0x76, 0x7E, 0x7E,
-        0x6E, 0x66, 0x66, 0x00
-    },
-
-    [0x4F] = {
-        0x3C, 0x66, 0x66, 0x66,
-        0x66, 0x66, 0x3C, 0x00
-    },
-
-    [0x50] = {
-        0x7C, 0x66, 0x66, 0x7C,
-        0x60, 0x60, 0x60, 0x00
-    },
-
-    [0x51] = {
-        0x3C, 0x66, 0x66, 0x66,
-        0x6E, 0x3C, 0x0E, 0x00
-    },
-
-    [0x52] = {
-        0x7C, 0x66, 0x66, 0x7C,
-        0x78, 0x6C, 0x66, 0x00
-    },
-
-    [0x53] = {
-        0x3C, 0x66, 0x60, 0x3C,
-        0x06, 0x66, 0x3C, 0x00
-    },
-
-    [0x54] = {
-        0x7E, 0x18, 0x18, 0x18,
-        0x18, 0x18, 0x18, 0x00
-    },
-
-    [0x55] = {
-        0x66, 0x66, 0x66, 0x66,
-        0x66, 0x66, 0x3C, 0x00
-    },
-
-    [0x56] = {
-        0x66, 0x66, 0x66, 0x66,
-        0x66, 0x66, 0x3C, 0x18
-    },
-
-    [0x57] = {
-        0x63, 0x63, 0x63, 0x6B,
-        0x6B, 0x7F, 0x36, 0x00
-    },
-
-    [0x58] = {
-        0x66, 0x66, 0x3C, 0x18,
-        0x3C, 0x66, 0x66, 0x00
-    },
-
-    [0x59] = {
-        0x66, 0x66, 0x66, 0x3C,
-        0x18, 0x18, 0x18, 0x00
-    },
-
-    [0x5A] = {
-        0x7E, 0x06, 0x0C, 0x18,
-        0x30, 0x60, 0x7E, 0x00
-    },
-
-    [0x5F] = {
-        0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0xFF, 0x00
-    },
-
-    [0x61] = {
-        0x00, 0x00, 0x3C, 0x06,
-        0x3E, 0x66, 0x3E, 0x00
-    },
-
-    [0x62] = {
-        0x60, 0x60, 0x7C, 0x66,
-        0x66, 0x66, 0x7C, 0x00
-    },
-
-    [0x63] = {
-        0x00, 0x00, 0x3C, 0x66,
-        0x60, 0x66, 0x3C, 0x00
-    },
-
-    [0x64] = {
-        0x06, 0x06, 0x3E, 0x66,
-        0x66, 0x66, 0x3E, 0x00
-    },
-
-    [0x65] = {
-        0x00, 0x00, 0x3C, 0x66,
-        0x7E, 0x60, 0x3C, 0x00
-    },
-
-    [0x66] = {
-        0x1C, 0x36, 0x30, 0x7C,
-        0x30, 0x30, 0x30, 0x00
-    },
-
-    [0x67] = {
-        0x00, 0x00, 0x3E, 0x66,
-        0x66, 0x3E, 0x06, 0x7C
-    },
-
-    [0x68] = {
-        0x60, 0x60, 0x7C, 0x66,
-        0x66, 0x66, 0x66, 0x00
-    },
-
-    [0x69] = {
-        0x18, 0x00, 0x38, 0x18,
-        0x18, 0x18, 0x3C, 0x00
-    },
-
-    [0x6A] = {
-        0x06, 0x00, 0x0E, 0x06,
-        0x06, 0x06, 0x66, 0x3C
-    },
-
-    [0x6B] = {
-        0x60, 0x60, 0x66, 0x6C,
-        0x78, 0x6C, 0x66, 0x00
-    },
-
-    [0x6C] = {
-        0x38, 0x18, 0x18, 0x18,
-        0x18, 0x18, 0x3C, 0x00
-    },
-
-    [0x6D] = {
-        0x00, 0x00, 0x6C, 0x7E,
-        0x6B, 0x6B, 0x63, 0x00
-    },
-
-    [0x6E] = {
-        0x00, 0x00, 0x7C, 0x66,
-        0x66, 0x66, 0x66, 0x00
-    },
-
-    [0x6F] = {
-        0x00, 0x00, 0x3C, 0x66,
-        0x66, 0x66, 0x3C, 0x00
-    },
-
-    [0x70] = {
-        0x00, 0x00, 0x7C, 0x66,
-        0x66, 0x7C, 0x60, 0x60
-    },
-
-    [0x71] = {
-        0x00, 0x00, 0x3E, 0x66,
-        0x66, 0x3E, 0x06, 0x06
-    },
-
-    [0x72] = {
-        0x00, 0x00, 0x6C, 0x76,
-        0x60, 0x60, 0x60, 0x00
-    },
-
-    [0x73] = {
-        0x00, 0x00, 0x3E, 0x60,
-        0x3C, 0x06, 0x7C, 0x00
-    },
-
-    [0x74] = {
-        0x30, 0x30, 0x7C, 0x30,
-        0x30, 0x36, 0x1C, 0x00
-    },
-
-    [0x75] = {
-        0x00, 0x00, 0x66, 0x66,
-        0x66, 0x66, 0x3E, 0x00
-    },
-
-    [0x76] = {
-        0x00, 0x00, 0x66, 0x66,
-        0x66, 0x3C, 0x18, 0x00
-    },
-
-    [0x77] = {
-        0x00, 0x00, 0x63, 0x6B,
-        0x6B, 0x7F, 0x36, 0x00
-    },
-
-    [0x78] = {
-        0x00, 0x00, 0x66, 0x3C,
-        0x18, 0x3C, 0x66, 0x00
-    },
-
-    [0x79] = {
-        0x00, 0x00, 0x66, 0x66,
-        0x66, 0x3E, 0x06, 0x7C
-    },
-
-    [0x7A] = {
-        0x00, 0x00, 0x7E, 0x0C,
-        0x18, 0x30, 0x7E, 0x00
-    }
+/*
+ * Multiboot2 tag header.
+ */
+struct multiboot_tag {
+    uint32_t type;
+    uint32_t size;
 };
 
-static void framebuffer_set_mode(
-    uint32_t* address,
-    uint32_t width,
-    uint32_t height,
-    uint32_t pitch,
-    uint8_t red_position,
-    uint8_t green_position,
-    uint8_t blue_position,
-    uint8_t reserved_position,
-    uint8_t red_mask,
-    uint8_t green_mask,
-    uint8_t blue_mask,
-    uint8_t reserved_mask
+/*
+ * Multiboot2 framebuffer tag.
+ *
+ * This layout follows the Multiboot2 specification:
+ *
+ *   u32 type
+ *   u32 size
+ *   u64 framebuffer_addr
+ *   u32 framebuffer_pitch
+ *   u32 framebuffer_width
+ *   u32 framebuffer_height
+ *   u8  framebuffer_bpp
+ *   u8  framebuffer_type
+ *   u16 reserved
+ *   color information...
+ */
+struct multiboot_tag_framebuffer {
+    uint32_t type;
+    uint32_t size;
+
+    uint64_t framebuffer_addr;
+
+    uint32_t framebuffer_pitch;
+    uint32_t framebuffer_width;
+    uint32_t framebuffer_height;
+
+    uint8_t framebuffer_bpp;
+    uint8_t framebuffer_type;
+
+    uint16_t reserved;
+
+    union {
+        struct {
+            uint32_t framebuffer_palette_num_colors;
+            uint8_t framebuffer_palette[0];
+        };
+
+        struct {
+            uint8_t framebuffer_red_field_position;
+            uint8_t framebuffer_red_mask_size;
+
+            uint8_t framebuffer_green_field_position;
+            uint8_t framebuffer_green_mask_size;
+
+            uint8_t framebuffer_blue_field_position;
+            uint8_t framebuffer_blue_mask_size;
+
+            uint8_t framebuffer_reserved_field_position;
+            uint8_t framebuffer_reserved_mask_size;
+        };
+    };
+};
+
+#define MULTIBOOT_TAG_END         0
+#define MULTIBOOT_TAG_FRAMEBUFFER 8
+
+#define MULTIBOOT_FRAMEBUFFER_INDEXED 0
+#define MULTIBOOT_FRAMEBUFFER_RGB     1
+#define MULTIBOOT_FRAMEBUFFER_TEXT    2
+
+static struct framebuffer framebuffer;
+
+static uint32_t* back_buffer;
+
+static uint64_t back_buffer_size;
+
+static int available;
+
+/*
+ * Convert our 0xRRGGBB color into the actual
+ * framebuffer pixel layout.
+ */
+static uint32_t make_color(
+    uint32_t color
 )
 {
-    framebuffer.address = address;
-    framebuffer.width = width;
-    framebuffer.height = height;
-    framebuffer.pitch = pitch;
+    uint32_t red =
+        (color >> 16) & 0xFFu;
 
-    framebuffer.red_position = red_position;
-    framebuffer.green_position = green_position;
-    framebuffer.blue_position = blue_position;
-    framebuffer.reserved_position = reserved_position;
+    uint32_t green =
+        (color >> 8) & 0xFFu;
 
-    framebuffer.red_mask = red_mask;
-    framebuffer.green_mask = green_mask;
-    framebuffer.blue_mask = blue_mask;
-    framebuffer.reserved_mask = reserved_mask;
+    uint32_t blue =
+        color & 0xFFu;
 
-    framebuffer_ready = 1;
+    uint32_t result =
+        0;
+
+    if (framebuffer.red_mask != 0) {
+
+        uint32_t value =
+            red;
+
+        if (framebuffer.red_mask < 8) {
+            value >>=
+                8 - framebuffer.red_mask;
+        }
+
+        result |=
+            (value &
+             ((1u << framebuffer.red_mask) - 1u))
+            << framebuffer.red_position;
+    }
+
+    if (framebuffer.green_mask != 0) {
+
+        uint32_t value =
+            green;
+
+        if (framebuffer.green_mask < 8) {
+            value >>=
+                8 - framebuffer.green_mask;
+        }
+
+        result |=
+            (value &
+             ((1u << framebuffer.green_mask) - 1u))
+            << framebuffer.green_position;
+    }
+
+    if (framebuffer.blue_mask != 0) {
+
+        uint32_t value =
+            blue;
+
+        if (framebuffer.blue_mask < 8) {
+            value >>=
+                8 - framebuffer.blue_mask;
+        }
+
+        result |=
+            (value &
+             ((1u << framebuffer.blue_mask) - 1u))
+            << framebuffer.blue_position;
+    }
+
+    return result;
+}
+
+/*
+ * Copy the software back buffer into the real
+ * framebuffer.
+ *
+ * IMPORTANT:
+ *
+ * The framebuffer pitch is in BYTES, and may be
+ * larger than width * 4. Therefore we must use
+ * pitch / 4 for the destination row stride.
+ */
+static void copy_framebuffer(void)
+{
+    if (!available ||
+        back_buffer == 0 ||
+        framebuffer.address == 0) {
+        return;
+    }
+
+    if (framebuffer.width == 0 ||
+        framebuffer.height == 0) {
+        return;
+    }
+
+    if (framebuffer.pitch < framebuffer.width * 4u) {
+        return;
+    }
+
+    uint32_t width =
+        framebuffer.width;
+
+    uint32_t height =
+        framebuffer.height;
+
+    uint32_t pitch_pixels =
+        framebuffer.pitch / 4u;
+
+    for (uint32_t y = 0;
+         y < height;
+         y++) {
+
+        uint32_t* destination =
+            framebuffer.address +
+            ((uint64_t)y *
+             pitch_pixels);
+
+        uint32_t* source =
+            back_buffer +
+            ((uint64_t)y *
+             width);
+
+        for (uint32_t x = 0;
+             x < width;
+             x++) {
+
+            destination[x] =
+                source[x];
+        }
+    }
 }
 
 void graphics_init(
     uint64_t multiboot_information
 )
 {
-    framebuffer_ready = 0;
+    available = 0;
 
-    uint8_t* base =
+    framebuffer.address = 0;
+
+    framebuffer.width = 0;
+    framebuffer.height = 0;
+    framebuffer.pitch = 0;
+
+    framebuffer.red_position = 0;
+    framebuffer.green_position = 0;
+    framebuffer.blue_position = 0;
+    framebuffer.reserved_position = 0;
+
+    framebuffer.red_mask = 0;
+    framebuffer.green_mask = 0;
+    framebuffer.blue_mask = 0;
+    framebuffer.reserved_mask = 0;
+
+    back_buffer = 0;
+    back_buffer_size = 0;
+
+    if (multiboot_information == 0) {
+        return;
+    }
+
+    uint8_t* mbi =
         (uint8_t*)(uintptr_t)
         multiboot_information;
 
-    uint32_t total_size =
-        *(uint32_t*)base;
+    /*
+     * Multiboot2 boot information starts with
+     * a sequence of 8-byte-aligned tags.
+     */
+    struct multiboot_tag* tag =
+        (struct multiboot_tag*)mbi;
 
-    uint8_t* current =
-        base + 8;
+    while (tag->type != MULTIBOOT_TAG_END) {
 
-    uint8_t* end =
-        base + total_size;
-
-    while (current < end) {
-        uint32_t type =
-            *(uint32_t*)current;
-
-        uint32_t size =
-            *(uint32_t*)(current + 4);
-
-        if (type == 0) {
-            break;
+        /*
+         * Every Multiboot2 tag has at least the
+         * 8-byte header.
+         */
+        if (tag->size < 8) {
+            return;
         }
 
-        if (type == 8) {
-            uint64_t address =
-                *(uint64_t*)(current + 8);
+        if (tag->type ==
+            MULTIBOOT_TAG_FRAMEBUFFER) {
 
-            uint32_t pitch =
-                *(uint32_t*)(current + 16);
+            /*
+             * Make sure the common framebuffer
+             * portion is actually present.
+             *
+             * The common portion ends at the
+             * reserved u16.
+             */
+            if (tag->size < 32) {
+                return;
+            }
 
-            uint32_t width =
-                *(uint32_t*)(current + 20);
+            struct multiboot_tag_framebuffer*
+                fb =
+                (struct multiboot_tag_framebuffer*)
+                tag;
 
-            uint32_t height =
-                *(uint32_t*)(current + 24);
+            /*
+             * We currently support a 32-bit
+             * direct RGB framebuffer.
+             */
+            if (fb->framebuffer_type !=
+                MULTIBOOT_FRAMEBUFFER_RGB) {
+                return;
+            }
 
-            uint8_t depth =
-                *(uint8_t*)(current + 28);
+            if (fb->framebuffer_bpp != 32) {
+                return;
+            }
 
-            uint8_t framebuffer_type =
-                *(uint8_t*)(current + 29);
+            if (fb->framebuffer_addr == 0) {
+                return;
+            }
 
-            if (framebuffer_type == 1 &&
-                depth == 32 &&
-                address != 0 &&
-                width != 0 &&
-                height != 0) {
+            if (fb->framebuffer_width == 0 ||
+                fb->framebuffer_height == 0) {
+                return;
+            }
 
-                uint8_t* color_info =
-                    current + 32;
+            /*
+             * A 32-bit framebuffer needs at
+             * least width * 4 bytes per row.
+             */
+            uint64_t minimum_pitch =
+                (uint64_t)
+                fb->framebuffer_width *
+                4u;
 
-                uint8_t red_position =
-                    color_info[0];
+            if ((uint64_t)
+                fb->framebuffer_pitch <
+                minimum_pitch) {
+                return;
+            }
 
-                uint8_t red_mask =
-                    color_info[1];
+            framebuffer.address =
+                (uint32_t*)(uintptr_t)
+                fb->framebuffer_addr;
 
-                uint8_t green_position =
-                    color_info[2];
+            framebuffer.width =
+                fb->framebuffer_width;
 
-                uint8_t green_mask =
-                    color_info[3];
+            framebuffer.height =
+                fb->framebuffer_height;
 
-                uint8_t blue_position =
-                    color_info[4];
+            framebuffer.pitch =
+                fb->framebuffer_pitch;
 
-                uint8_t blue_mask =
-                    color_info[5];
+            framebuffer.red_position =
+                fb->framebuffer_red_field_position;
 
-                framebuffer_set_mode(
-                    (uint32_t*)(uintptr_t)address,
-                    width,
-                    height,
-                    pitch,
-                    red_position,
-                    green_position,
-                    blue_position,
-                    24,
-                    red_mask,
-                    green_mask,
-                    blue_mask,
-                    8
+            framebuffer.green_position =
+                fb->framebuffer_green_field_position;
+
+            framebuffer.blue_position =
+                fb->framebuffer_blue_field_position;
+
+            framebuffer.reserved_position =
+                fb->framebuffer_reserved_field_position;
+
+            framebuffer.red_mask =
+                fb->framebuffer_red_mask_size;
+
+            framebuffer.green_mask =
+                fb->framebuffer_green_mask_size;
+
+            framebuffer.blue_mask =
+                fb->framebuffer_blue_mask_size;
+
+            framebuffer.reserved_mask =
+                fb->framebuffer_reserved_mask_size;
+
+            /*
+             * Calculate the software buffer size.
+             */
+            uint64_t pixels =
+                (uint64_t)
+                framebuffer.width *
+                (uint64_t)
+                framebuffer.height;
+
+            /*
+             * Guard against integer overflow.
+             */
+            if (pixels >
+                ((uint64_t)SIZE_MAX /
+                 sizeof(uint32_t))) {
+
+                framebuffer.address = 0;
+                return;
+            }
+
+            back_buffer_size =
+                pixels *
+                sizeof(uint32_t);
+
+            /*
+             * Allocate the software back buffer
+             * only after the framebuffer has been
+             * validated.
+             */
+            extern void* kmalloc(
+                size_t size
+            );
+
+            back_buffer =
+                (uint32_t*)
+                kmalloc(
+                    (size_t)
+                    back_buffer_size
                 );
 
-                break;
+            if (back_buffer == 0) {
+
+                framebuffer.address = 0;
+                back_buffer_size = 0;
+
+                return;
             }
+
+            /*
+             * Start with a completely black
+             * back buffer.
+             */
+            for (uint64_t i = 0;
+                 i < pixels;
+                 i++) {
+
+                back_buffer[i] =
+                    0;
+            }
+
+            available =
+                1;
+
+            return;
         }
 
-        if (size < 8) {
-            break;
+        /*
+         * THIS IS THE IMPORTANT FIX.
+         *
+         * The old code did:
+         *
+         *     address + next
+         *
+         * which jumps relative to the beginning
+         * of the Multiboot information block.
+         *
+         * It must instead advance from the
+         * CURRENT tag.
+         */
+        uint32_t next =
+            (tag->size + 7u) &
+            ~7u;
+
+        if (next < 8) {
+            return;
         }
 
-        current +=
-            (size + 7) & ~7u;
+        tag =
+            (struct multiboot_tag*)
+            ((uint8_t*)tag + next);
     }
 }
 
-const struct framebuffer* graphics_get_framebuffer(void)
+const struct framebuffer*
+graphics_get_framebuffer(void)
 {
     return &framebuffer;
 }
 
 int graphics_available(void)
 {
-    return framebuffer_ready;
+    return available;
+}
+
+void graphics_clear(
+    uint32_t color
+)
+{
+    if (!available ||
+        back_buffer == 0) {
+        return;
+    }
+
+    uint32_t pixel =
+        make_color(color);
+
+    uint64_t pixels =
+        (uint64_t)
+        framebuffer.width *
+        (uint64_t)
+        framebuffer.height;
+
+    for (uint64_t i = 0;
+         i < pixels;
+         i++) {
+
+        back_buffer[i] =
+            pixel;
+    }
 }
 
 void graphics_put_pixel(
@@ -512,7 +490,8 @@ void graphics_put_pixel(
     uint32_t color
 )
 {
-    if (!framebuffer_ready) {
+    if (!available ||
+        back_buffer == 0) {
         return;
     }
 
@@ -520,16 +499,15 @@ void graphics_put_pixel(
         y < 0 ||
         x >= (int32_t)framebuffer.width ||
         y >= (int32_t)framebuffer.height) {
-
         return;
     }
 
-    uint8_t* address =
-        (uint8_t*)framebuffer.address +
-        (size_t)y * framebuffer.pitch +
-        (size_t)x * 4;
-
-    *(uint32_t*)address = color;
+    back_buffer[
+        ((uint64_t)y *
+         framebuffer.width) +
+        (uint32_t)x
+    ] =
+        make_color(color);
 }
 
 void graphics_fill_rect(
@@ -540,24 +518,73 @@ void graphics_fill_rect(
     uint32_t color
 )
 {
+    if (!available ||
+        back_buffer == 0) {
+        return;
+    }
+
     if (width <= 0 ||
         height <= 0) {
         return;
     }
 
-    for (int32_t current_y = y;
-         current_y < y + height;
-         current_y++) {
+    int32_t x_start =
+        x;
 
-        for (int32_t current_x = x;
-             current_x < x + width;
-             current_x++) {
+    int32_t y_start =
+        y;
 
-            graphics_put_pixel(
-                current_x,
-                current_y,
-                color
-            );
+    int32_t x_end =
+        x + width;
+
+    int32_t y_end =
+        y + height;
+
+    if (x_start < 0) {
+        x_start = 0;
+    }
+
+    if (y_start < 0) {
+        y_start = 0;
+    }
+
+    if (x_end >
+        (int32_t)framebuffer.width) {
+
+        x_end =
+            (int32_t)framebuffer.width;
+    }
+
+    if (y_end >
+        (int32_t)framebuffer.height) {
+
+        y_end =
+            (int32_t)framebuffer.height;
+    }
+
+    if (x_start >= x_end ||
+        y_start >= y_end) {
+        return;
+    }
+
+    uint32_t pixel =
+        make_color(color);
+
+    for (int32_t py = y_start;
+         py < y_end;
+         py++) {
+
+        uint32_t* row =
+            back_buffer +
+            ((uint64_t)py *
+             framebuffer.width);
+
+        for (int32_t px = x_start;
+             px < x_end;
+             px++) {
+
+            row[px] =
+                pixel;
         }
     }
 }
@@ -608,23 +635,6 @@ void graphics_rect(
     );
 }
 
-void graphics_clear(
-    uint32_t color
-)
-{
-    if (!framebuffer_ready) {
-        return;
-    }
-
-    graphics_fill_rect(
-        0,
-        0,
-        (int32_t)framebuffer.width,
-        (int32_t)framebuffer.height,
-        color
-    );
-}
-
 void graphics_draw_char(
     int32_t x,
     int32_t y,
@@ -638,36 +648,119 @@ void graphics_draw_char(
         scale = 1;
     }
 
-    uint8_t code =
+    /*
+     * 5x5 font.
+     *
+     * The array has 96 entries covering
+     * ASCII 32 through 127.
+     */
+    static const uint8_t font[96][5] = {
+
+        [1] = {0,0,0,0,0},
+
+        ['A' - 32] = {14,17,17,31,17},
+        ['B' - 32] = {30,17,30,17,30},
+        ['C' - 32] = {15,16,16,16,15},
+        ['D' - 32] = {30,17,17,17,30},
+        ['E' - 32] = {31,16,30,16,31},
+        ['F' - 32] = {31,16,30,16,16},
+        ['G' - 32] = {15,16,23,17,15},
+        ['H' - 32] = {17,17,31,17,17},
+        ['I' - 32] = {31,4,4,4,31},
+        ['J' - 32] = {7,2,2,18,12},
+        ['K' - 32] = {17,18,28,18,17},
+        ['L' - 32] = {16,16,16,16,31},
+        ['M' - 32] = {17,27,21,17,17},
+        ['N' - 32] = {17,25,21,19,17},
+        ['O' - 32] = {14,17,17,17,14},
+        ['P' - 32] = {30,17,30,16,16},
+        ['Q' - 32] = {14,17,17,21,10},
+        ['R' - 32] = {30,17,30,18,17},
+        ['S' - 32] = {15,16,14,1,30},
+        ['T' - 32] = {31,4,4,4,4},
+        ['U' - 32] = {17,17,17,17,14},
+        ['V' - 32] = {17,17,17,10,4},
+        ['W' - 32] = {17,17,21,27,17},
+        ['X' - 32] = {17,10,4,10,17},
+        ['Y' - 32] = {17,10,4,4,4},
+        ['Z' - 32] = {31,2,4,8,31},
+
+        ['0' - 32] = {14,17,19,21,14},
+        ['1' - 32] = {4,12,4,4,14},
+        ['2' - 32] = {14,17,2,4,31},
+        ['3' - 32] = {30,1,6,1,30},
+        ['4' - 32] = {2,6,10,31,2},
+        ['5' - 32] = {31,16,30,1,30},
+        ['6' - 32] = {14,16,30,17,14},
+        ['7' - 32] = {31,1,2,4,4},
+        ['8' - 32] = {14,17,14,17,14},
+        ['9' - 32] = {14,17,15,1,14},
+
+        ['.' - 32] = {0,0,0,0,4},
+        ['-' - 32] = {0,0,31,0,0},
+        ['_' - 32] = {0,0,0,0,31},
+        [':' - 32] = {0,4,0,4,0},
+        ['/' - 32] = {1,2,4,8,16}
+    };
+
+    uint32_t fg =
+        make_color(foreground);
+
+    uint32_t bg =
+        make_color(background);
+
+    /*
+     * Fill the character background first.
+     */
+    graphics_fill_rect(
+        x,
+        y,
+        5 * scale,
+        5 * scale,
+        background
+    );
+
+    /*
+     * char is signed on some targets, so
+     * convert it to unsigned before doing
+     * the range check.
+     */
+    uint8_t character_code =
         (uint8_t)character;
 
-    if (code >= 128) {
-        code = '?';
+    if (character_code < 32 ||
+        character_code > 127) {
+        return;
     }
 
+    const uint8_t* glyph =
+        font[
+            character_code - 32
+        ];
+
     for (int row = 0;
-         row < 8;
+         row < 5;
          row++) {
 
         uint8_t bits =
-            font[code][row];
+            glyph[row];
 
-        for (int column = 0;
-             column < 8;
-             column++) {
+        for (int col = 0;
+             col < 5;
+             col++) {
 
-            uint32_t color =
+            uint32_t pixel =
                 (bits &
-                 (uint8_t)(1u << (7 - column)))
-                    ? foreground
-                    : background;
+                 (1u << (4 - col)))
+                ? fg
+                : bg;
 
             graphics_fill_rect(
-                x + column * scale,
+                x + col * scale,
                 y + row * scale,
                 scale,
                 scale,
-                color
+                pixel
             );
         }
     }
@@ -686,22 +779,13 @@ void graphics_draw_text(
         return;
     }
 
-    int32_t start_x = x;
-
-    if (scale == 0) {
-        scale = 1;
-    }
+    int32_t cursor_x =
+        x;
 
     while (*text != '\0') {
-        if (*text == '\n') {
-            x = start_x;
-            y += 8 * scale;
-            text++;
-            continue;
-        }
 
         graphics_draw_char(
-            x,
+            cursor_x,
             y,
             *text,
             foreground,
@@ -709,18 +793,18 @@ void graphics_draw_text(
             scale
         );
 
-        x += 8 * scale;
+        cursor_x +=
+            6 * scale;
+
         text++;
     }
 }
 
 void graphics_present(void)
 {
-    /*
-     * Rendering is currently direct-to-framebuffer.
-     *
-     * This function is intentionally retained as the
-     * presentation boundary so a backbuffer can be added
-     * later without changing the desktop API.
-     */
+    if (!available) {
+        return;
+    }
+
+    copy_framebuffer();
 }

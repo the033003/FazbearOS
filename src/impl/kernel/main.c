@@ -8,12 +8,9 @@
 #include "keyboard.h"
 #include "log.h"
 #include "memory.h"
-#include "mouse.h"
 #include "pic.h"
 #include "print.h"
-#include "shell.h"
 #include "timer.h"
-#include "desktop/desktop.h"
 
 static uint64_t boot_information;
 
@@ -50,13 +47,25 @@ static void initialize_kernel(void)
         boot_information
     );
 
+    log_info(
+        "memory subsystem OK"
+    );
+
     heap_init();
+
+    log_info(
+        "heap OK"
+    );
 
     log_info(
         "initializing device subsystem"
     );
 
     device_subsystem_init();
+
+    log_info(
+        "device subsystem OK"
+    );
 
     log_info(
         "initializing virtual filesystem"
@@ -68,11 +77,27 @@ static void initialize_kernel(void)
         ramfs_root();
 
     if (ram_root != 0) {
+
         vfs_mount_root(
             ram_root
         );
+
+        log_info(
+            "ramfs mounted"
+        );
+
+    } else {
+
+        log_info(
+            "ramfs unavailable"
+        );
     }
 
+    /*
+     * Initialize graphics AFTER the heap,
+     * because the software framebuffer is
+     * allocated from the kernel heap.
+     */
     log_info(
         "initializing graphics"
     );
@@ -81,105 +106,141 @@ static void initialize_kernel(void)
         boot_information
     );
 
-    if (graphics_available()) {
-        const struct framebuffer* framebuffer =
-            graphics_get_framebuffer();
+    log_info(
+        "graphics_init returned"
+    );
+
+    if (!graphics_available()) {
 
         log_info(
-            "graphics framebuffer initialized"
+            "framebuffer UNAVAILABLE"
         );
 
         print_str(
-            "Framebuffer: "
+            "\n"
+            "FRAMEBUFFER UNAVAILABLE\n"
         );
 
-        print_str(
-            "available\n"
-        );
-
-        (void)framebuffer;
-    } else {
-        log_info(
-            "graphics framebuffer unavailable"
-        );
+        while (1) {
+            __asm__ volatile (
+                "hlt"
+            );
+        }
     }
 
-    log_info(
-        "initializing interrupt subsystem"
-    );
-
-    interrupts_init();
-
-    pic_init();
-
-    log_info(
-        "initializing timer"
-    );
-
-    timer_init(
-        100
-    );
-
-    log_info(
-        "initializing keyboard"
-    );
-
-    keyboard_init();
-
-    log_info(
-        "initializing mouse"
-    );
-
-    mouse_init();
-}
-
-static void start_desktop(void)
-{
-    desktop_t desktop;
-
-    const struct framebuffer* framebuffer =
+    const struct framebuffer*
+        framebuffer =
         graphics_get_framebuffer();
 
-    int width = 1024;
-    int height = 768;
+    if (framebuffer == 0 ||
+        framebuffer->address == 0 ||
+        framebuffer->width == 0 ||
+        framebuffer->height == 0) {
 
-    if (graphics_available() &&
-        framebuffer != 0 &&
-        framebuffer->width != 0 &&
-        framebuffer->height != 0) {
+        log_info(
+            "framebuffer INVALID"
+        );
 
-        width =
-            (int)framebuffer->width;
+        print_str(
+            "\n"
+            "FRAMEBUFFER INVALID\n"
+        );
 
-        height =
-            (int)framebuffer->height;
+        while (1) {
+            __asm__ volatile (
+                "hlt"
+            );
+        }
     }
 
     log_info(
-        "initializing desktop"
+        "framebuffer AVAILABLE"
     );
 
-    desktop_init(
-        &desktop,
-        width,
-        height
+    /*
+     * Do NOT initialize interrupts, timer,
+     * keyboard, mouse, or desktop yet.
+     *
+     * We are deliberately isolating the
+     * framebuffer from everything else.
+     */
+}
+
+static void framebuffer_test(void)
+{
+    log_info(
+        "starting framebuffer test"
     );
+
+    /*
+     * Entire frame goes into the software
+     * buffer.
+     */
+    graphics_clear(
+        0x202040
+    );
+
+    /*
+     * Large cyan rectangle.
+     */
+    graphics_fill_rect(
+        50,
+        50,
+        400,
+        200,
+        0x00AAFF
+    );
+
+    /*
+     * White border.
+     */
+    graphics_rect(
+        50,
+        50,
+        400,
+        200,
+        0xFFFFFF
+    );
+
+    /*
+     * Text.
+     */
+    graphics_draw_text(
+        80,
+        100,
+        "FAZBEAROS",
+        0xFFFFFF,
+        0x00AAFF,
+        2
+    );
+
+    graphics_draw_text(
+        80,
+        135,
+        "GRAPHICS OK",
+        0xFFFFFF,
+        0x00AAFF,
+        2
+    );
+
+    /*
+     * Present exactly once.
+     */
+    graphics_present();
 
     log_info(
-        "desktop initialized"
+        "framebuffer test presented"
     );
 
+    /*
+     * Stay here.
+     *
+     * No interrupts.
+     * No mouse.
+     * No desktop.
+     * No repeated framebuffer copies.
+     */
     while (1) {
-        desktop_update(
-            &desktop
-        );
-
-        desktop_render(
-            &desktop
-        );
-
-        graphics_present();
-
         __asm__ volatile (
             "hlt"
         );
@@ -197,23 +258,20 @@ void kernel_main(
 
     kernel_banner();
 
+    print_str(
+        "kernel_main entered\n"
+        "\n"
+    );
+
     initialize_kernel();
 
     print_str(
         "\n"
-    );
-
-    log_info(
-        "kernel initialization complete"
-    );
-
-    print_str(
+        "========================================\n"
+        "          FRAMEBUFFER TEST              \n"
+        "========================================\n"
         "\n"
     );
 
-    /*
-     * The shell will become a graphical
-     * terminal application.
-     */
-    start_desktop();
+    framebuffer_test();
 }

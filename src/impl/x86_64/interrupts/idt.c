@@ -112,6 +112,7 @@ static void idt_load(void)
 static void idt_clear(void)
 {
     for (size_t i = 0; i < 256; i++) {
+
         idt[i] =
             (struct idt_entry) {
                 0
@@ -124,6 +125,7 @@ void irq_end_of_interrupt(
 )
 {
     if (irq >= 8) {
+
         outb(
             0xA0,
             0x20
@@ -174,12 +176,11 @@ void interrupts_init(void)
     idt_set_gate(31, isr31);
 
     /*
-     * PIC IRQs:
-     *
      * IRQ0 -> vector 32
      * IRQ1 -> vector 33
      * IRQ12 -> vector 44
      */
+
     idt_set_gate(
         32,
         irq0
@@ -197,9 +198,19 @@ void interrupts_init(void)
 
     idt_load();
 
-    __asm__ volatile (
-        "sti"
-    );
+    /*
+     * Interrupts are deliberately NOT enabled here.
+     *
+     * main.c executes STI after:
+     *
+     *   PIC
+     *   timer
+     *   keyboard
+     *   mouse
+     *   desktop
+     *
+     * are initialized.
+     */
 }
 
 static const char* exception_name(
@@ -301,14 +312,19 @@ void interrupt_dispatch(
             );
 
         if (irq == 0) {
+
             extern void timer_tick(void);
 
             timer_tick();
+
         } else if (irq == 1) {
+
             extern void keyboard_interrupt(void);
 
             keyboard_interrupt();
+
         } else if (irq == 12) {
+
             extern void mouse_interrupt(void);
 
             mouse_interrupt();
@@ -322,6 +338,7 @@ void interrupt_dispatch(
     }
 
     if (frame->vector < 32) {
+
         __asm__ volatile (
             "cli"
         );
@@ -413,6 +430,7 @@ void interrupt_dispatch(
         );
 
         while (1) {
+
             __asm__ volatile (
                 "hlt"
             );
