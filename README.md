@@ -1,9 +1,11 @@
 # FazbearOS
 
-Please don't sue me Scott.
-
 A hobby x86_64 operating system written in C and Assembly.  
 It boots into a simple graphical desktop with a working mouse and keyboard.
+
+---
+<img width="1028" height="799" alt="image" src="https://github.com/user-attachments/assets/2e23059c-015d-4597-97c1-30f6b8081e42" />
+---
 
 ## Features
 
