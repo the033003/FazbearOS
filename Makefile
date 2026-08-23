@@ -1,29 +1,85 @@
-kernel_source_files := $(shell find src/impl/kernel -name *.c)
-kernel_object_files := $(patsubst src/impl/kernel/%.c, build/kernel/%.o, $(kernel_source_files))
+KERNEL_C_DIR := src/impl/kernel
+ARCH_C_DIR := src/impl/x86_64
+ARCH_ASM_DIR := src/impl/x86_64
 
-x86_64_c_source_files := $(shell find src/impl/x86_64 -name *.c)
-x86_64_c_object_files := $(patsubst src/impl/x86_64/%.c, build/x86_64/%.o, $(x86_64_c_source_files))
+BUILD_DIR := build
+DIST_DIR := dist/x86_64
+ISO_DIR := targets/x86_64/iso
+KERNEL_BIN := $(DIST_DIR)/kernel.bin
+KERNEL_ISO := $(DIST_DIR)/kernel.iso
 
-x86_64_asm_source_files := $(shell find src/impl/x86_64 -name *.asm)
-x86_64_asm_object_files := $(patsubst src/impl/x86_64/%.asm, build/x86_64/%.o, $(x86_64_asm_source_files))
+CC := x86_64-elf-gcc
+LD := x86_64-elf-ld
+AS := nasm
 
-x86_64_object_files := $(x86_64_c_object_files) $(x86_64_asm_object_files)
+CFLAGS := \
+	-ffreestanding \
+	-mno-red-zone \
+	-fno-stack-protector \
+	-fno-pic \
+	-fno-pie \
+	-Wall \
+	-Wextra \
+	-I src/intf
 
-$(kernel_object_files): build/kernel/%.o : src/impl/kernel/%.c
-	mkdir -p $(dir $@) && \
-	x86_64-elf-gcc -c -I src/intf -ffreestanding $(patsubst build/kernel/%.o, src/impl/kernel/%.c, $@) -o $@
+LDFLAGS := \
+	-n \
+	-T targets/x86_64/linker.ld
 
-$(x86_64_c_object_files): build/x86_64/%.o : src/impl/x86_64/%.c
-	mkdir -p $(dir $@) && \
-	x86_64-elf-gcc -c -I src/intf -ffreestanding $(patsubst build/x86_64/%.o, src/impl/x86_64/%.c, $@) -o $@
+KERNEL_SOURCES := $(shell find $(KERNEL_C_DIR) -name '*.c')
+ARCH_C_SOURCES := $(shell find $(ARCH_C_DIR) -name '*.c')
+ARCH_ASM_SOURCES := $(shell find $(ARCH_ASM_DIR) -name '*.asm')
 
-$(x86_64_asm_object_files): build/x86_64/%.o : src/impl/x86_64/%.asm
-	mkdir -p $(dir $@) && \
-	nasm -f elf64 $(patsubst build/x86_64/%.o, src/impl/x86_64/%.asm, $@) -o $@
+KERNEL_OBJECTS := $(patsubst $(KERNEL_C_DIR)/%.c,$(BUILD_DIR)/kernel/%.o,$(KERNEL_SOURCES))
+ARCH_C_OBJECTS := $(patsubst $(ARCH_C_DIR)/%.c,$(BUILD_DIR)/x86_64/%.o,$(ARCH_C_SOURCES))
+ARCH_ASM_OBJECTS := $(patsubst $(ARCH_ASM_DIR)/%.asm,$(BUILD_DIR)/x86_64/%.o,$(ARCH_ASM_SOURCES))
+
+OBJECTS := \
+	$(KERNEL_OBJECTS) \
+	$(ARCH_C_OBJECTS) \
+	$(ARCH_ASM_OBJECTS)
+
+.PHONY: all
+all: build-x86_64
 
 .PHONY: build-x86_64
-build-x86_64: $(kernel_object_files) $(x86_64_object_files)
-	mkdir -p dist/x86_64 && \
-	x86_64-elf-ld -n -o dist/x86_64/kernel.bin -T targets/x86_64/linker.ld $(kernel_object_files) $(x86_64_object_files) && \
-	cp dist/x86_64/kernel.bin targets/x86_64/iso/boot/kernel.bin && \
-	grub-mkrescue /usr/lib/grub/i386-pc -o dist/x86_64/kernel.iso targets/x86_64/iso
+build-x86_64: $(KERNEL_ISO)
+
+$(KERNEL_ISO): $(KERNEL_BIN)
+	mkdir -p $(DIST_DIR)
+	cp $(KERNEL_BIN) $(ISO_DIR)/boot/kernel.bin
+	grub-mkrescue -o $(KERNEL_ISO) $(ISO_DIR)
+
+$(KERNEL_BIN): $(OBJECTS)
+	mkdir -p $(DIST_DIR)
+	$(LD) $(LDFLAGS) -o $@ $(OBJECTS)
+
+$(BUILD_DIR)/kernel/%.o: $(KERNEL_C_DIR)/%.c
+	mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/x86_64/%.o: $(ARCH_C_DIR)/%.c
+	mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/x86_64/%.o: $(ARCH_ASM_DIR)/%.asm
+	mkdir -p $(dir $@)
+	$(AS) -f elf64 $< -o $@
+
+.PHONY: clean
+clean:
+	rm -rf $(BUILD_DIR) $(DIST_DIR)
+
+.PHONY: rebuild
+rebuild: clean build-x86_64
+
+.PHONY: run
+run: build-x86_64
+	qemu-system-x86_64 -cdrom $(KERNEL_ISO)
+
+.PHONY: run-debug
+run-debug: build-x86_64
+	qemu-system-x86_64 \
+		-cdrom $(KERNEL_ISO) \
+		-no-reboot \
+		-no-shutdown

@@ -2,15 +2,38 @@ ENTRY(start)
 
 SECTIONS
 {
-	. = 1M;
+    . = 1M;
 
-	.boot :
-	{
-		KEEP(*(.multiboot_header))
-	}
+    .boot ALIGN(4K) :
+    {
+        KEEP(*(.multiboot_header))
+    }
 
-	.text :
-	{
-		*(.text)
-	}
+    .text ALIGN(4K) :
+    {
+        *(.text)
+        *(.text.*)
+    }
+
+    .rodata ALIGN(4K) :
+    {
+        *(.rodata)
+        *(.rodata.*)
+    }
+
+    .data ALIGN(4K) :
+    {
+        *(.data)
+        *(.data.*)
+    }
+
+    .bss ALIGN(4K) :
+    {
+        *(COMMON)
+        *(.bss)
+        *(.bss.*)
+    }
+
+    . = ALIGN(4K);
+    kernel_end = .;
 }

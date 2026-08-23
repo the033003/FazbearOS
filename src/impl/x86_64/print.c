@@ -1,83 +1,141 @@
 #include "print.h"
 
-const static size_t NUM_COLS = 80;
-const static size_t NUM_ROWS = 25;
+static const size_t NUM_COLS = 80;
+static const size_t NUM_ROWS = 25;
 
 struct Char {
     uint8_t character;
     uint8_t color;
 };
 
-struct Char* buffer = (struct Char*) 0xb8000;
-size_t col = 0;
-size_t row = 0;
-uint8_t color = PRINT_COLOR_WHITE | PRINT_COLOR_BLACK << 4;
+static volatile struct Char* const buffer =
+    (volatile struct Char*)0xB8000;
 
-void clear_row(size_t row) {
-    struct Char empty = (struct Char) {
-        character: ' ',
-        color: color,
+static size_t column = 0;
+static size_t row = 0;
+
+static uint8_t color =
+    PRINT_COLOR_WHITE | (PRINT_COLOR_BLACK << 4);
+
+static void clear_row(size_t row_index)
+{
+    struct Char empty = {
+        .character = ' ',
+        .color = color
     };
 
-    for (size_t col = 0; col < NUM_COLS; col++) {
-        buffer[col + NUM_COLS * row] = empty;
+    for (size_t current_column = 0;
+         current_column < NUM_COLS;
+         current_column++) {
+
+        buffer[
+            current_column +
+            NUM_COLS * row_index
+        ] = empty;
     }
 }
 
-void print_clear() {
-    for (size_t i = 0; i < NUM_ROWS; i++) {
-        clear_row(i);
+void print_clear(void)
+{
+    for (size_t current_row = 0;
+         current_row < NUM_ROWS;
+         current_row++) {
+
+        clear_row(current_row);
     }
+
+    column = 0;
+    row = 0;
 }
 
-void print_newline() {
-    col = 0;
+static void print_newline(void)
+{
+    column = 0;
 
     if (row < NUM_ROWS - 1) {
         row++;
         return;
     }
 
-    for (size_t row = 1; row < NUM_ROWS; row++) {
-        for (size_t col = 0; col < NUM_COLS; col++) {
-            struct Char character = buffer[col + NUM_COLS * row];
-            buffer[col + NUM_COLS * (row - 1)] = character;
+    for (size_t current_row = 1;
+         current_row < NUM_ROWS;
+         current_row++) {
+
+        for (size_t current_column = 0;
+             current_column < NUM_COLS;
+             current_column++) {
+
+            struct Char character =
+                buffer[
+                    current_column +
+                    NUM_COLS * current_row
+                ];
+
+            buffer[
+                current_column +
+                NUM_COLS * (current_row - 1)
+            ] = character;
         }
     }
 
-    clear_row(NUM_COLS - 1);
+    clear_row(NUM_ROWS - 1);
 }
 
-void print_char(char character) {
+void print_char(char character)
+{
     if (character == '\n') {
         print_newline();
         return;
     }
 
-    if (col > NUM_COLS) {
+    if (character == '\r') {
+        column = 0;
+        return;
+    }
+
+    if (character == '\t') {
+        print_char(' ');
+        print_char(' ');
+        print_char(' ');
+        print_char(' ');
+        return;
+    }
+
+    if (column >= NUM_COLS) {
         print_newline();
     }
 
-    buffer[col + NUM_COLS * row] = (struct Char) {
-        character: (uint8_t) character,
-        color: color,
+    buffer[
+        column +
+        NUM_COLS * row
+    ] = (struct Char) {
+        .character = (uint8_t)character,
+        .color = color
     };
 
-    col++;
+    column++;
 }
 
-void print_str(char* str) {
-    for (size_t i = 0; 1; i++) {
-        char character = (uint8_t) str[i];
+void print_str(const char* string)
+{
+    if (string == 0) {
+        return;
+    }
 
-        if (character == '\0') {
-            return;
-        }
+    for (size_t i = 0;
+         string[i] != '\0';
+         i++) {
 
-        print_char(character);
+        print_char(string[i]);
     }
 }
 
-void print_set_color(uint8_t foreground, uint8_t background) {
-    color = foreground + (background << 4);
+void print_set_color(
+    uint8_t foreground,
+    uint8_t background
+)
+{
+    color =
+        foreground |
+        (background << 4);
 }
