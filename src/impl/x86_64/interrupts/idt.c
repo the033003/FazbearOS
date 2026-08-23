@@ -211,11 +211,9 @@ void interrupts_init(void)
     idt_load();
 
     /*
-     * The IDT is now valid.
+     * Do NOT enable interrupts here.
+     * STI is done in kernel_main after mouse_init() finishes.
      */
-    __asm__ volatile (
-        "sti"
-    );
 }
 
 static const char* exception_name(

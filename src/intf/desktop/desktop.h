@@ -18,7 +18,10 @@ typedef struct {
     bool mouse_left;
     bool previous_mouse_left;
 
-    window_t *windows[DESKTOP_MAX_WINDOWS];
+    window_t *windows[
+        DESKTOP_MAX_WINDOWS
+    ];
+
     int window_count;
 
     window_t *focused;

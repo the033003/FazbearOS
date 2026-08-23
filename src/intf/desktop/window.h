@@ -5,10 +5,12 @@
 #include <stdbool.h>
 
 #define WINDOW_TITLE_MAX 64
+#define WINDOW_TITLEBAR_HEIGHT 28
 
 typedef struct {
     int x;
     int y;
+
     int width;
     int height;
 

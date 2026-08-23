@@ -3,6 +3,10 @@
 
 #define KEYBOARD_BUFFER_SIZE 256
 
+#define PS2_STATUS  0x64
+#define PS2_STATUS_OUTPUT_FULL 0x01
+#define PS2_STATUS_AUX_DATA    0x20
+
 static volatile char buffer[KEYBOARD_BUFFER_SIZE];
 
 static volatile uint16_t buffer_read = 0;
@@ -154,20 +158,24 @@ void keyboard_init(void)
     /*
      * Enable keyboard IRQ generation.
      */
-    uint8_t command = inb(0x64);
-
-    if ((command & 1) == 0) {
-        /*
-         * The keyboard controller command byte
-         * is configured below only when needed.
-         */
-    }
-
     outb(0x64, 0xAE);
 }
 
 void keyboard_interrupt(void)
 {
+    uint8_t status = inb(PS2_STATUS);
+
+    /*
+     * Nothing waiting or this is mouse data → leave it alone.
+     */
+    if ((status & PS2_STATUS_OUTPUT_FULL) == 0) {
+        return;
+    }
+
+    if (status & PS2_STATUS_AUX_DATA) {
+        return;
+    }
+
     uint8_t scancode = inb(0x60);
 
     if (scancode == 0xE0) {

@@ -13,17 +13,11 @@ void window_init(
         return;
     }
 
-    window->x =
-        x;
+    window->x = x;
+    window->y = y;
 
-    window->y =
-        y;
-
-    window->width =
-        width;
-
-    window->height =
-        height;
+    window->width = width;
+    window->height = height;
 
     window->background =
         0xD8D8E0;
@@ -34,39 +28,34 @@ void window_init(
     window->titlebar =
         0x303080;
 
-    window->visible =
-        true;
+    window->visible = true;
+    window->focused = true;
+    window->dragging = false;
 
-    window->focused =
-        true;
+    window->drag_offset_x = 0;
+    window->drag_offset_y = 0;
 
-    window->dragging =
-        false;
+    for (int i = 0;
+         i < WINDOW_TITLE_MAX;
+         i++) {
 
-    window->drag_offset_x =
-        0;
-
-    window->drag_offset_y =
-        0;
-
-    int i = 0;
+        window->title[i] = '\0';
+    }
 
     if (title != 0) {
+        int i = 0;
 
-        while (
-            title[i] != '\0' &&
-            i < WINDOW_TITLE_MAX - 1
-        ) {
+        while (title[i] != '\0' &&
+               i < WINDOW_TITLE_MAX - 1) {
 
             window->title[i] =
                 title[i];
 
             i++;
         }
-    }
 
-    window->title[i] =
-        '\0';
+        window->title[i] = '\0';
+    }
 }
 
 bool window_contains(
@@ -83,8 +72,8 @@ bool window_contains(
 
     return
         x >= window->x &&
-        y >= window->y &&
         x < window->x + window->width &&
+        y >= window->y &&
         y < window->y + window->height;
 }
 
@@ -94,17 +83,18 @@ bool window_titlebar_contains(
     int y
 )
 {
-    if (window == 0 ||
-        !window->visible) {
+    if (!window_contains(
+            window,
+            x,
+            y)) {
 
         return false;
     }
 
     return
-        x >= window->x &&
         y >= window->y &&
-        x < window->x + window->width &&
-        y < window->y + 28;
+        y < window->y +
+            WINDOW_TITLEBAR_HEIGHT;
 }
 
 void window_move(
@@ -117,9 +107,6 @@ void window_move(
         return;
     }
 
-    window->x =
-        x;
-
-    window->y =
-        y;
+    window->x = x;
+    window->y = y;
 }

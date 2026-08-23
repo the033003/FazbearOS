@@ -3,16 +3,20 @@
 #include "graphics.h"
 #include "mouse.h"
 
-#define COLOR_DESKTOP      0x17172A
-#define COLOR_TASKBAR      0x24243A
-#define COLOR_WINDOW       0xC8C8D0
-#define COLOR_BORDER       0xFFFFFF
-#define COLOR_TITLEBAR     0x1769AA
+#define COLOR_DESKTOP       0x17172A
+#define COLOR_TASKBAR       0x24243A
+#define COLOR_WINDOW        0xD8D8E0
+#define COLOR_BORDER        0xFFFFFF
+#define COLOR_TITLEBAR      0x1769AA
 #define COLOR_TITLEBAR_DARK 0x0E416B
-#define COLOR_TEXT         0xFFFFFF
-#define COLOR_CURSOR       0xFFFFFF
-#define COLOR_CURSOR_EDGE  0x000000
-#define COLOR_TASK_TEXT    0xFFFFFF
+#define COLOR_TEXT          0xFFFFFF
+#define COLOR_CURSOR        0xFFFFFF
+#define COLOR_CURSOR_EDGE   0x000000
+#define COLOR_CONTENT       0xE2E2EA
+#define COLOR_CONTENT_EDGE  0x9A9AAA
+
+#define TASKBAR_HEIGHT 40
+#define TOPBAR_HEIGHT 42
 
 static window_t test_window;
 
@@ -21,13 +25,6 @@ static void draw_cursor(
     int y
 )
 {
-    /*
-     * Classic arrow cursor.
-     *
-     * Draw the black outline first, then
-     * the white interior.
-     */
-
     static const char cursor[16][12] = {
         "X           ",
         "XX          ",
@@ -55,19 +52,14 @@ static void draw_cursor(
              col < 12;
              col++) {
 
-            char pixel =
-                cursor[row][col];
+            if (cursor[row][col] == 'X') {
 
-            if (pixel == '\0' ||
-                pixel == ' ') {
-                continue;
+                graphics_put_pixel(
+                    x + col,
+                    y + row,
+                    COLOR_CURSOR_EDGE
+                );
             }
-
-            graphics_put_pixel(
-                x + col,
-                y + row,
-                COLOR_CURSOR_EDGE
-            );
         }
     }
 
@@ -76,13 +68,13 @@ static void draw_cursor(
         "X           ",
         "X           ",
         "X.X         ",
-        "X..X        ",
         "X...X       ",
         "X....X      ",
         "X.....X     ",
         "X......X    ",
         "X.......X   ",
         "X........X  ",
+        "X.........X ",
         "X......XX   ",
         "X...X       ",
         "X..X        ",
@@ -98,17 +90,183 @@ static void draw_cursor(
              col < 12;
              col++) {
 
-            if (interior[row][col] != 'X') {
-                continue;
-            }
+            if (interior[row][col] == 'X') {
 
-            graphics_put_pixel(
-                x + col,
-                y + row,
-                COLOR_CURSOR
-            );
+                graphics_put_pixel(
+                    x + col,
+                    y + row,
+                    COLOR_CURSOR
+                );
+            }
         }
     }
+}
+
+static void draw_window(
+    window_t *window
+)
+{
+    if (window == 0 ||
+        !window->visible) {
+
+        return;
+    }
+
+    graphics_fill_rect(
+        window->x + 5,
+        window->y + 5,
+        window->width,
+        window->height,
+        0x080810
+    );
+
+    graphics_fill_rect(
+        window->x,
+        window->y,
+        window->width,
+        window->height,
+        window->background
+    );
+
+    graphics_rect(
+        window->x,
+        window->y,
+        window->width,
+        window->height,
+        window->border
+    );
+
+    uint32_t title_color =
+        window->focused
+            ? COLOR_TITLEBAR
+            : 0x45455A;
+
+    graphics_fill_rect(
+        window->x,
+        window->y,
+        window->width,
+        WINDOW_TITLEBAR_HEIGHT,
+        title_color
+    );
+
+    graphics_fill_rect(
+        window->x,
+        window->y +
+            WINDOW_TITLEBAR_HEIGHT - 1,
+        window->width,
+        1,
+        COLOR_TITLEBAR_DARK
+    );
+
+    graphics_draw_text(
+        window->x + 10,
+        window->y + 8,
+        window->title,
+        COLOR_TEXT,
+        title_color,
+        2
+    );
+
+    int close_x =
+        window->x +
+        window->width -
+        24;
+
+    graphics_fill_rect(
+        close_x,
+        window->y + 6,
+        16,
+        16,
+        0xD83A56
+    );
+
+    graphics_draw_text(
+        close_x + 3,
+        window->y + 9,
+        "X",
+        COLOR_TEXT,
+        0xD83A56,
+        1
+    );
+
+    int content_x =
+        window->x + 20;
+
+    int content_y =
+        window->y + 55;
+
+    int content_width =
+        window->width - 40;
+
+    int content_height =
+        window->height - 75;
+
+    if (content_width <= 0 ||
+        content_height <= 0) {
+
+        return;
+    }
+
+    graphics_fill_rect(
+        content_x,
+        content_y,
+        content_width,
+        content_height,
+        COLOR_CONTENT
+    );
+
+    graphics_rect(
+        content_x,
+        content_y,
+        content_width,
+        content_height,
+        COLOR_CONTENT_EDGE
+    );
+
+    graphics_draw_text(
+        content_x + 18,
+        content_y + 23,
+        "Welcome to FazbearOS",
+        0x101020,
+        COLOR_CONTENT,
+        2
+    );
+
+    graphics_draw_text(
+        content_x + 18,
+        content_y + 53,
+        "Desktop is running.",
+        0x101020,
+        COLOR_CONTENT,
+        1
+    );
+
+    graphics_draw_text(
+        content_x + 18,
+        content_y + 75,
+        "Move the mouse.",
+        0x101020,
+        COLOR_CONTENT,
+        1
+    );
+
+    graphics_draw_text(
+        content_x + 18,
+        content_y + 97,
+        "Drag this title bar.",
+        0x101020,
+        COLOR_CONTENT,
+        1
+    );
+
+    graphics_draw_text(
+        content_x + 18,
+        content_y + 119,
+        "Click the window to focus it.",
+        0x101020,
+        COLOR_CONTENT,
+        1
+    );
 }
 
 void desktop_init(
@@ -121,49 +279,98 @@ void desktop_init(
         return;
     }
 
+    if (width < 1) {
+        width = 1;
+    }
+
+    if (height < 1) {
+        height = 1;
+    }
+
     desktop->width =
         width;
 
     desktop->height =
         height;
 
+    /*
+     * Tell the mouse driver the actual
+     * framebuffer dimensions.
+     */
+    mouse_set_screen_size(
+        width,
+        height
+    );
+
+    /*
+     * Start the cursor at the center of
+     * the actual display.
+     */
+    desktop->mouse_x =
+        width / 2;
+
+    desktop->mouse_y =
+        height / 2;
+
+    /*
+     * Keep the driver's position synchronized
+     * with the desktop cursor.
+     *
+     * The mouse state itself will be updated
+     * by subsequent movement packets.
+     */
     const struct mouse_state*
         mouse =
         mouse_get_state();
 
     if (mouse != 0) {
 
+        /*
+         * The driver starts at zero. Move the
+         * visible cursor to the center without
+         * generating a fake mouse event.
+         */
+        int center_x =
+            width / 2;
+
+        int center_y =
+            height / 2;
+
+        /*
+         * There is no setter for the driver's
+         * position because normal operation
+         * should be driven by hardware movement.
+         *
+         * Start the desktop at the driver's
+         * actual position instead so both layers
+         * remain synchronized.
+         */
         desktop->mouse_x =
             mouse->x;
 
         desktop->mouse_y =
             mouse->y;
 
-    } else {
+        if (desktop->mouse_x < 0) {
+            desktop->mouse_x = 0;
+        }
 
-        desktop->mouse_x =
-            width / 2;
+        if (desktop->mouse_y < 0) {
+            desktop->mouse_y = 0;
+        }
 
-        desktop->mouse_y =
-            height / 2;
-    }
+        if (desktop->mouse_x >= width) {
+            desktop->mouse_x =
+                width - 1;
+        }
 
-    if (desktop->mouse_x < 0) {
-        desktop->mouse_x = 0;
-    }
+        if (desktop->mouse_y >= height) {
+            desktop->mouse_y =
+                height - 1;
+        }
 
-    if (desktop->mouse_y < 0) {
-        desktop->mouse_y = 0;
-    }
-
-    if (desktop->mouse_x >= width) {
-        desktop->mouse_x =
-            width - 1;
-    }
-
-    if (desktop->mouse_y >= height) {
-        desktop->mouse_y =
-            height - 1;
+        (void)center_x;
+        (void)center_y;
     }
 
     desktop->mouse_left =
@@ -192,13 +399,56 @@ void desktop_init(
             0;
     }
 
+    int window_width =
+        500;
+
+    int window_height =
+        300;
+
+    if (window_width >
+        width - 20) {
+
+        window_width =
+            width - 20;
+    }
+
+    if (window_height >
+        height - 80) {
+
+        window_height =
+            height - 80;
+    }
+
+    if (window_width < 120) {
+        window_width =
+            width;
+    }
+
+    if (window_height < 80) {
+        window_height =
+            height;
+    }
+
+    int window_x =
+        (width - window_width) / 2;
+
+    int window_y =
+        (height - window_height) / 2;
+
+    if (window_y <
+        TOPBAR_HEIGHT + 4) {
+
+        window_y =
+            TOPBAR_HEIGHT + 4;
+    }
+
     window_init(
         &test_window,
         "FazbearOS",
-        width / 2 - 250,
-        height / 2 - 150,
-        500,
-        300
+        window_x,
+        window_y,
+        window_width,
+        window_height
     );
 
     desktop->windows[0] =
@@ -218,6 +468,15 @@ void desktop_update(
     if (desktop == 0) {
         return;
     }
+
+    /*
+     * Poll the PS/2 controller every frame.
+     *
+     * IRQ12 will also call mouse_interrupt()
+     * when interrupts are working. The driver
+     * safely handles both paths.
+     */
+    mouse_poll();
 
     const struct mouse_state*
         mouse =
@@ -249,171 +508,25 @@ void desktop_update(
     mouse_clear_event();
 }
 
-static void draw_window(
-    window_t* window
-)
-{
-    if (window == 0 ||
-        !window->visible) {
-        return;
-    }
-
-    graphics_fill_rect(
-        window->x + 4,
-        window->y + 4,
-        window->width,
-        window->height,
-        0x080810
-    );
-
-    graphics_fill_rect(
-        window->x,
-        window->y,
-        window->width,
-        window->height,
-        window->background
-    );
-
-    graphics_rect(
-        window->x,
-        window->y,
-        window->width,
-        window->height,
-        window->border
-    );
-
-    graphics_fill_rect(
-        window->x,
-        window->y,
-        window->width,
-        28,
-        window->titlebar
-    );
-
-    graphics_fill_rect(
-        window->x,
-        window->y + 27,
-        window->width,
-        1,
-        COLOR_TITLEBAR_DARK
-    );
-
-    graphics_draw_text(
-        window->x + 10,
-        window->y + 8,
-        window->title,
-        COLOR_TEXT,
-        window->titlebar,
-        2
-    );
-
-    /*
-     * Close button.
-     */
-    graphics_fill_rect(
-        window->x +
-            window->width - 24,
-        window->y + 6,
-        16,
-        16,
-        0xD83A56
-    );
-
-    graphics_draw_text(
-        window->x +
-            window->width - 21,
-        window->y + 9,
-        "X",
-        COLOR_TEXT,
-        0xD83A56,
-        1
-    );
-
-    /*
-     * Window contents.
-     */
-    graphics_fill_rect(
-        window->x + 20,
-        window->y + 55,
-        window->width - 40,
-        window->height - 75,
-        0xE2E2EA
-    );
-
-    graphics_rect(
-        window->x + 20,
-        window->y + 55,
-        window->width - 40,
-        window->height - 75,
-        0x9A9AAA
-    );
-
-    graphics_draw_text(
-        window->x + 38,
-        window->y + 78,
-        "Welcome to FazbearOS",
-        0x101020,
-        0xE2E2EA,
-        2
-    );
-
-    graphics_draw_text(
-        window->x + 38,
-        window->y + 108,
-        "Desktop is running.",
-        0x101020,
-        0xE2E2EA,
-        1
-    );
-
-    graphics_draw_text(
-        window->x + 38,
-        window->y + 130,
-        "Move the mouse.",
-        0x101020,
-        0xE2E2EA,
-        1
-    );
-
-    graphics_draw_text(
-        window->x + 38,
-        window->y + 152,
-        "Drag this title bar.",
-        0x101020,
-        0xE2E2EA,
-        1
-    );
-}
-
 void desktop_render(
     desktop_t *desktop
 )
 {
-    if (desktop == 0) {
+    if (desktop == 0 ||
+        !graphics_available()) {
+
         return;
     }
 
-    if (!graphics_available()) {
-        return;
-    }
-
-    /*
-     * Everything is drawn into the back
-     * buffer. The real framebuffer is not
-     * touched until graphics_present().
-     */
     graphics_clear(
         COLOR_DESKTOP
     );
 
-    /*
-     * Top branding.
-     */
     graphics_fill_rect(
         0,
         0,
         desktop->width,
-        42,
+        TOPBAR_HEIGHT,
         0x11111F
     );
 
@@ -426,54 +539,60 @@ void desktop_render(
         2
     );
 
-    /*
-     * Taskbar.
-     */
+    int taskbar_y =
+        desktop->height -
+        TASKBAR_HEIGHT;
+
+    if (taskbar_y < 0) {
+        taskbar_y = 0;
+    }
+
     graphics_fill_rect(
         0,
-        desktop->height - 40,
+        taskbar_y,
         desktop->width,
-        40,
+        TASKBAR_HEIGHT,
         COLOR_TASKBAR
     );
 
     graphics_fill_rect(
         0,
-        desktop->height - 40,
+        taskbar_y,
         desktop->width,
         2,
         0x00AAFF
     );
 
-    graphics_fill_rect(
-        12,
-        desktop->height - 32,
-        100,
-        24,
-        0x1769AA
-    );
+    int start_width =
+        100;
 
-    graphics_draw_text(
-        26,
-        desktop->height - 26,
-        "START",
-        COLOR_TASK_TEXT,
-        0x1769AA,
-        1
-    );
+    if (start_width >
+        desktop->width - 24) {
 
-    graphics_draw_text(
-        desktop->width - 95,
-        desktop->height - 26,
-        "FAZBEAROS",
-        COLOR_TASK_TEXT,
-        COLOR_TASKBAR,
-        1
-    );
+        start_width =
+            desktop->width - 24;
+    }
 
-    /*
-     * Windows.
-     */
+    if (start_width > 0) {
+
+        graphics_fill_rect(
+            12,
+            taskbar_y + 8,
+            start_width,
+            24,
+            COLOR_TITLEBAR
+        );
+
+        graphics_draw_text(
+            26,
+            taskbar_y + 14,
+            "START",
+            COLOR_TEXT,
+            COLOR_TITLEBAR,
+            1
+        );
+    }
+
     for (int i = 0;
          i < desktop->window_count;
          i++) {
@@ -483,10 +602,6 @@ void desktop_render(
         );
     }
 
-    /*
-     * Cursor is always last, so it appears
-     * above every window.
-     */
     draw_cursor(
         desktop->mouse_x,
         desktop->mouse_y
@@ -510,21 +625,23 @@ void desktop_mouse_move(
         dy;
 
     if (desktop->mouse_x < 0) {
-        desktop->mouse_x =
-            0;
+        desktop->mouse_x = 0;
     }
 
     if (desktop->mouse_y < 0) {
-        desktop->mouse_y =
-            0;
+        desktop->mouse_y = 0;
     }
 
-    if (desktop->mouse_x >= desktop->width) {
+    if (desktop->mouse_x >=
+        desktop->width) {
+
         desktop->mouse_x =
             desktop->width - 1;
     }
 
-    if (desktop->mouse_y >= desktop->height) {
+    if (desktop->mouse_y >=
+        desktop->height) {
+
         desktop->mouse_y =
             desktop->height - 1;
     }
@@ -553,6 +670,9 @@ void desktop_mouse_button(
         return;
     }
 
+    /*
+     * Mouse-down transition.
+     */
     if (left &&
         !desktop->previous_mouse_left) {
 
@@ -566,6 +686,7 @@ void desktop_mouse_button(
 
             if (window == 0 ||
                 !window->visible) {
+
                 continue;
             }
 
@@ -573,6 +694,7 @@ void desktop_mouse_button(
                     window,
                     desktop->mouse_x,
                     desktop->mouse_y)) {
+
                 continue;
             }
 
@@ -584,6 +706,7 @@ void desktop_mouse_button(
                  j++) {
 
                 if (desktop->windows[j] != 0) {
+
                     desktop->windows[j]->focused =
                         desktop->windows[j] ==
                         window;
@@ -614,6 +737,9 @@ void desktop_mouse_button(
         }
     }
 
+    /*
+     * Mouse-up transition.
+     */
     if (!left &&
         desktop->previous_mouse_left) {
 
@@ -626,6 +752,9 @@ void desktop_mouse_button(
                 0;
         }
     }
+
+    desktop->mouse_left =
+        left;
 
     desktop->previous_mouse_left =
         left;

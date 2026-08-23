@@ -12,7 +12,6 @@
 #include "pic.h"
 #include "print.h"
 #include "timer.h"
-
 #include "desktop/desktop.h"
 
 static uint64_t boot_information;
@@ -40,6 +39,14 @@ static void kernel_banner(void)
 
 static void initialize_kernel(void)
 {
+    /*
+     * Keep interrupts disabled throughout
+     * initialization.
+     */
+    __asm__ volatile (
+        "cli"
+    );
+
     log_init();
 
     log_info(
@@ -90,10 +97,6 @@ static void initialize_kernel(void)
         );
     }
 
-    /*
-     * Graphics must be initialized after the heap because
-     * the software back buffer is allocated from the heap.
-     */
     log_info(
         "initializing graphics"
     );
@@ -115,6 +118,7 @@ static void initialize_kernel(void)
 
         for (;;) {
             __asm__ volatile (
+                "cli\n"
                 "hlt"
             );
         }
@@ -140,6 +144,7 @@ static void initialize_kernel(void)
 
         for (;;) {
             __asm__ volatile (
+                "cli\n"
                 "hlt"
             );
         }
@@ -150,9 +155,7 @@ static void initialize_kernel(void)
     );
 
     /*
-     * Initialize the PIC first.
-     *
-     * Interrupts are still disabled at this point.
+     * PIC first.
      */
     log_info(
         "initializing PIC"
@@ -160,10 +163,14 @@ static void initialize_kernel(void)
 
     pic_init();
 
+    log_info(
+        "PIC initialized"
+    );
+
     /*
-     * Install the IDT.
+     * IDT next.
      *
-     * interrupts_init() no longer executes STI.
+     * interrupts_init() leaves IF cleared.
      */
     log_info(
         "initializing IDT"
@@ -172,14 +179,12 @@ static void initialize_kernel(void)
     interrupts_init();
 
     log_info(
-        "IDT loaded"
+        "IDT initialized"
     );
 
     /*
-     * Initialize all IRQ-driven devices before enabling
-     * interrupts. This prevents the mouse from interrupting
-     * the CPU while mouse_init() is synchronously talking
-     * to the PS/2 controller.
+     * Initialize all IRQ devices while
+     * interrupts are still disabled.
      */
     log_info(
         "initializing timer"
@@ -214,10 +219,8 @@ static void initialize_kernel(void)
     );
 
     /*
-     * Everything that can generate a hardware interrupt is
-     * now initialized.
-     *
-     * It is finally safe to enable interrupts.
+     * Enable interrupts only after the PS/2
+     * controller is completely configured.
      */
     __asm__ volatile (
         "sti"
@@ -258,11 +261,22 @@ void kernel_main(
         "starting desktop"
     );
 
-    desktop_t desktop;
-
     const struct framebuffer*
         framebuffer =
         graphics_get_framebuffer();
+
+    if (framebuffer == 0) {
+
+        for (;;) {
+
+            __asm__ volatile (
+                "cli\n"
+                "hlt"
+            );
+        }
+    }
+
+    desktop_t desktop;
 
     desktop_init(
         &desktop,
@@ -275,15 +289,15 @@ void kernel_main(
     );
 
     /*
-     * Main desktop loop.
+     * Do not sleep here yet.
      *
-     * Input is collected from interrupt handlers.
-     * desktop_update() consumes the latest mouse event.
-     * Rendering always goes to the software back buffer.
-     * graphics_present() copies that buffer to the real
-     * framebuffer.
+     * Mouse polling needs to run continuously.
+     * Once mouse input is proven to work, we can
+     * put HLT/frame pacing back.
      */
     for (;;) {
+
+        mouse_poll();
 
         desktop_update(
             &desktop
@@ -294,13 +308,5 @@ void kernel_main(
         );
 
         graphics_present();
-
-        /*
-         * Interrupts are enabled, so HLT sleeps until the
-         * next timer, keyboard, or mouse interrupt.
-         */
-        __asm__ volatile (
-            "hlt"
-        );
     }
 }

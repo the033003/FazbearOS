@@ -1,6 +1,7 @@
 #include "mouse.h"
 
 #include "io.h"
+#include "pic.h"
 
 #define PS2_STATUS  0x64
 #define PS2_COMMAND 0x64
@@ -163,6 +164,12 @@ void mouse_init(void)
     event_available = 0;
 
     /*
+     * Keep IRQ12 masked while we talk to the mouse.
+     * Prevents the interrupt handler from stealing ACKs.
+     */
+    pic_mask(12);
+
+    /*
      * Disable mouse reporting while configuring it.
      */
     (void)mouse_command(0xF5);
@@ -242,6 +249,11 @@ void mouse_init(void)
 
     packet_index = 0;
     event_available = 0;
+
+    /*
+     * Safe to take mouse interrupts again.
+     */
+    pic_unmask(12);
 }
 
 void mouse_interrupt(void)
