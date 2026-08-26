@@ -14,8 +14,8 @@ start:
     ; Save the Multiboot2 information pointer immediately.
     ;
     ; GRUB provides:
-    ;   EAX = 0x36D76289
-    ;   EBX = physical address of the Multiboot2 information.
+    ;   EAX = Multiboot2 magic
+    ;   EBX = physical address of the Multiboot2 information
     cmp eax, 0x36D76289
     jne .halt
 
@@ -40,7 +40,7 @@ start:
     mov eax, page_table_l4
     mov cr3, eax
 
-    ; Enable Long Mode.
+    ; Enable Long Mode through EFER.LME.
     mov ecx, 0xC0000080
     rdmsr
     or eax, 0x00000100
@@ -201,6 +201,13 @@ setup_page_tables:
     ret
 
 
+; ---------------------------------------------------------------------------
+; 64-bit entry point.
+;
+; This is the target of the far jump above. The actual C-facing entry point
+; lives in main64.asm as main64().
+; ---------------------------------------------------------------------------
+
 BITS 64
 
 long_mode_start:
@@ -220,8 +227,10 @@ long_mode_start:
     cld
 
     ; Pass the Multiboot2 information pointer to main64().
+    ;
+    ; The pointer was saved while still in 32-bit mode because EBX is not
+    ; guaranteed to survive the transition.
     mov edi, dword [multiboot_information]
-    mov rdi, rdi
 
     ; Keep interrupts disabled until the kernel installs an IDT.
     cli

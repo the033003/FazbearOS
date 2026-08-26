@@ -7,6 +7,9 @@
 #define WINDOW_TITLE_MAX 64
 #define WINDOW_TITLEBAR_HEIGHT 28
 
+#define WINDOW_APP_GENERIC 0
+#define WINDOW_APP_NIBBLE  1
+
 typedef struct {
     int x;
     int y;
@@ -19,11 +22,15 @@ typedef struct {
     uint32_t titlebar;
 
     bool visible;
+    bool minimized;
     bool focused;
     bool dragging;
+    bool closable;
 
     int drag_offset_x;
     int drag_offset_y;
+
+    uint8_t app_id;
 
     char title[WINDOW_TITLE_MAX];
 } window_t;

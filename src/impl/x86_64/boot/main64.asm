@@ -3,30 +3,22 @@ BITS 64
 global main64
 
 extern kernel_main
-extern multiboot_information
 
 section .text
 
 main64:
-    ; main.asm has already established a valid 64-bit stack.
-    ; Do not replace or redefine that stack here.
 
-    ; System V AMD64 ABI:
-    ; RSP must be 16-byte aligned immediately before CALL.
-    sub rsp, 8
+    ; main.asm has already placed the Multiboot2 information pointer
+    ; into RDI, which is the first argument register under the
+    ; System V x86_64 calling convention.
 
-    ; Pass the Multiboot2 information pointer as the first
-    ; argument to kernel_main().
-    mov edi, dword [multiboot_information]
-
-    ; Keep interrupts disabled until the kernel installs
-    ; a valid IDT.
+    ; Keep interrupts disabled until the kernel installs an IDT.
     cli
-    cld
 
+    ; Enter the C kernel.
     call kernel_main
 
-.hang:
+.halt:
     cli
     hlt
-    jmp .hang
+    jmp .halt

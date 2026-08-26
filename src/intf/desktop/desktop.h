@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 #include "desktop/window.h"
+#include "desktop/nibble.h"
 
 #define DESKTOP_MAX_WINDOWS 16
 
@@ -18,6 +19,8 @@ typedef struct {
     bool mouse_left;
     bool previous_mouse_left;
 
+    bool start_menu_open;
+
     window_t *windows[
         DESKTOP_MAX_WINDOWS
     ];
@@ -27,7 +30,9 @@ typedef struct {
     window_t *focused;
     window_t *dragging;
 
-    bool terminal_open;
+    nibble_t nibble;
+
+    window_t nibble_window;
 } desktop_t;
 
 void desktop_init(

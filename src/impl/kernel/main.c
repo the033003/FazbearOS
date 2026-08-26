@@ -1,161 +1,100 @@
 #include <stdint.h>
 
-#include "device.h"
-#include "fs.h"
-#include "graphics.h"
-#include "heap.h"
-#include "interrupts.h"
-#include "keyboard.h"
-#include "log.h"
-#include "memory.h"
-#include "mouse.h"
-#include "pic.h"
-#include "print.h"
-#include "timer.h"
 #include "desktop/desktop.h"
 
-static uint64_t boot_information;
+#include "graphics.h"
+#include "memory.h"
+#include "heap.h"
 
-static void kernel_banner(void)
+#include "pic.h"
+#include "interrupts.h"
+#include "keyboard.h"
+#include "mouse.h"
+#include "timer.h"
+
+static void halt_cpu(void)
 {
-    print_set_color(
-        PRINT_COLOR_LIGHT_CYAN,
-        PRINT_COLOR_BLACK
-    );
-
-    print_str(
-        "\n"
-        "========================================\n"
-        "              FazbearOS                 \n"
-        "========================================\n"
-        "\n"
-    );
-
-    print_set_color(
-        PRINT_COLOR_LIGHT_GRAY,
-        PRINT_COLOR_BLACK
-    );
+    __asm__ volatile ("hlt");
 }
 
-static void initialize_kernel(void)
+void kernel_main(
+    uint64_t multiboot_information
+)
 {
-    __asm__ volatile (
-        "cli"
+    /*
+     * Core memory.
+     */
+    memory_init(
+        multiboot_information
     );
-
-    log_init();
-
-    log_info("initializing memory subsystem");
-    memory_init(boot_information);
-    log_info("memory subsystem OK");
 
     heap_init();
-    log_info("heap OK");
 
-    log_info("initializing device subsystem");
-    device_subsystem_init();
-    log_info("device subsystem OK");
-
-    log_info("initializing virtual filesystem");
-    vfs_init();
-
-    struct fs_node* ram_root = ramfs_root();
-    if (ram_root != 0) {
-        vfs_mount_root(ram_root);
-        log_info("ramfs mounted");
-    }
-
-    log_info("initializing graphics");
-    graphics_init(boot_information);
-
-    if (!graphics_available()) {
-        log_info("framebuffer UNAVAILABLE");
-        print_str("\nFRAMEBUFFER UNAVAILABLE\n");
-        for (;;) {
-            __asm__ volatile ("cli\nhlt");
-        }
-    }
-
-    const struct framebuffer* framebuffer = graphics_get_framebuffer();
-    if (framebuffer == 0 ||
-        framebuffer->address == 0 ||
-        framebuffer->width == 0 ||
-        framebuffer->height == 0) {
-
-        log_info("framebuffer INVALID");
-        print_str("\nFRAMEBUFFER INVALID\n");
-        for (;;) {
-            __asm__ volatile ("cli\nhlt");
-        }
-    }
-
-    log_info("framebuffer AVAILABLE");
-
-    log_info("initializing PIC");
-    pic_init();
-    log_info("PIC initialized");
-
-    log_info("initializing IDT");
-    interrupts_init();
-    log_info("IDT initialized");
-
-    log_info("initializing timer");
-    timer_init(100);
-    log_info("timer initialized");
-
-    log_info("initializing keyboard");
-    keyboard_init();
-    log_info("keyboard initialized");
-
-    log_info("initializing mouse");
-    mouse_init();
-    log_info("mouse initialized");
-
-    __asm__ volatile ("sti");
-    log_info("interrupts enabled");
-}
-
-void kernel_main(uint64_t multiboot_information)
-{
-    boot_information = multiboot_information;
-
-    print_clear();
-    kernel_banner();
-
-    print_str("kernel_main entered\n\n");
-
-    initialize_kernel();
-
-    print_str(
-        "\n"
-        "========================================\n"
-        "             FazbearOS Desktop          \n"
-        "========================================\n"
-        "\n"
+    /*
+     * Graphics must come after the heap because
+     * framebuffer.c allocates its software backbuffer.
+     */
+    graphics_init(
+        multiboot_information
     );
 
-    log_info("starting desktop");
+    /*
+     * Hardware input.
+     */
+    pic_init();
+    interrupts_init();
 
-    const struct framebuffer* framebuffer = graphics_get_framebuffer();
-    if (framebuffer == 0) {
-        for (;;) {
-            __asm__ volatile ("cli\nhlt");
-        }
-    }
+    keyboard_init();
+    mouse_init();
+
+    /*
+     * A small heartbeat for future desktop timing,
+     * animations and application scheduling.
+     */
+    timer_init(100);
+
+    /*
+     * Enable hardware interrupts only after
+     * every interrupt source has been configured.
+     */
+    __asm__ volatile ("sti");
 
     desktop_t desktop;
-    desktop_init(
-        &desktop,
-        (int)framebuffer->width,
-        (int)framebuffer->height
-    );
 
-    log_info("desktop initialized");
+    if (graphics_available()) {
+        const struct framebuffer *framebuffer =
+            graphics_get_framebuffer();
 
+        if (
+            framebuffer != 0 &&
+            framebuffer->width > 0 &&
+            framebuffer->height > 0
+        ) {
+            desktop_init(
+                &desktop,
+                (int)framebuffer->width,
+                (int)framebuffer->height
+            );
+
+            for (;;) {
+                desktop_update(
+                    &desktop
+                );
+
+                desktop_render(
+                    &desktop
+                );
+
+                halt_cpu();
+            }
+        }
+    }
+
+    /*
+     * Graphics failed. Keep the machine alive rather
+     * than executing into an invalid state.
+     */
     for (;;) {
-        mouse_poll();
-        desktop_update(&desktop);
-        desktop_render(&desktop);
-        graphics_present();
+        halt_cpu();
     }
 }
