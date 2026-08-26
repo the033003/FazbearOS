@@ -1,23 +1,73 @@
 # FazbearOS
 
-A hobby x86_64 operating system written in C and Assembly.  
-It boots into a simple graphical desktop with a working mouse and keyboard.
+A hobby x86_64 operating system written in C and Assembly.
+
+FazbearOS currently boots through Multiboot2 + GRUB into a custom graphical desktop with working PS/2 mouse and keyboard input, draggable windows, a taskbar, Start menu, and the Nibble scratchpad application.
 
 ---
-<img width="1028" height="799" alt="image" src="https://github.com/user-attachments/assets/2e23059c-015d-4597-97c1-30f6b8081e42" />
+
+<img width="1029" height="794" alt="image" src="https://github.com/user-attachments/assets/9adf73f0-db95-4cd6-b0a5-56a6f5e5a37f" />
+
 ---
 
 ## Features
 
+### Boot & Kernel
+
 - Multiboot2 + GRUB boot
-- 64-bit long mode
-- Physical memory manager + heap
-- Interrupt handling (IDT + PIC)
-- PS/2 keyboard and mouse
+- x86_64 long mode
+- 64-bit GDT setup
+- Identity-mapped paging for the first 4 GiB
+- Physical memory manager
+- Kernel heap
+- Interrupt Descriptor Table (IDT)
+- Programmable Interrupt Controller (PIC)
+- RTC support
+- Kernel logging
+- Basic kernel shell
+
+### Graphics & Desktop
+
 - Linear framebuffer graphics
-- Basic windowed desktop (draggable window, taskbar, cursor)
-- Simple VFS + ramfs
-- Logging and a basic shell
+- 1024×768 framebuffer support
+- Custom software-rendered desktop
+- Top desktop bar
+- Taskbar
+- Start menu
+- Desktop grid/background
+- Window borders and title bars
+- Active/inactive window states
+- Window focus management
+- Draggable windows
+- Window minimize/close controls
+- Taskbar window buttons
+- Custom software mouse cursor
+
+### Input
+
+- PS/2 keyboard driver
+- PS/2 mouse driver
+- Mouse interrupt handling
+- Mouse packet synchronization
+- Mouse movement and button tracking
+- Screen-bound mouse coordinates
+- Left, right, and middle mouse button support
+- Smooth window dragging
+
+### Applications
+
+- **Nibble** scratchpad application
+- Launch Nibble from the Start menu
+- Minimize and restore applications from the taskbar
+- Close and relaunch applications
+- Keyboard input while Nibble is focused
+
+### Storage & Filesystem
+
+- Physical memory management
+- Kernel heap
+- Basic VFS
+- RAM filesystem (ramfs)
 
 ## Running a prebuilt ISO
 
@@ -25,73 +75,11 @@ It boots into a simple graphical desktop with a working mouse and keyboard.
 2. Run it with QEMU:
 
 ```bash
-qemu-system-x86_64 -cdrom path/to/kernel.iso -m 256M
+qemu-system-x86_64 \
+ -cdrom dist/x86_64/kernel.iso \
+ -m 256M \
+ -machine type=pc,accel=tcg \
+ -device nec-usb-xhci \
+ -device usb-tablet \
+ -display sdl
 ```
-
-Click inside the QEMU window to capture the mouse.  
-Press `Left Ctrl + Left Alt` to release it.
-
-You can also burn the ISO to a USB stick and boot it on real hardware.
-
-> VirtualBox support is untested / unreliable. QEMU is recommended.
-
-## Building from source
-
-**Recommended:** Linux + Docker.
-
-### Requirements
-
-- Docker (daemon running)
-- QEMU (`qemu-system-x86_64`)
-- (Optional) a text editor
-
-### Steps
-
-```bash
-# 1. Build the toolchain container
-sudo docker build buildenv -t fazbear-buildenv
-
-# 2. Enter the container (mounts the project)
-sudo docker run --rm -it -v "$(pwd)":/root/env fazbear-buildenv
-
-# 3. Inside the container – build the ISO
-make build-x86_64
-
-# 4. Exit the container
-exit
-
-# 5. Run it
-qemu-system-x86_64 -cdrom dist/x86_64/kernel.iso -m 256M
-```
-
-### Useful Make targets
-
-| Command              | Description                  |
-|----------------------|------------------------------|
-| `make build-x86_64`  | Build kernel + ISO           |
-| `make clean`         | Remove build artifacts       |
-| `make run`           | Build and launch in QEMU     |
-
-### Cleaning up Docker
-
-```bash
-docker rmi fazbear-buildenv -f
-```
-
-## Project layout
-
-```
-src/
-├── impl/
-│   ├── kernel/          # Core kernel, desktop, memory, VFS…
-│   └── x86_64/          # Architecture-specific (boot, interrupts, drivers)
-└── intf/                # Public headers
-targets/x86_64/          # Linker script + ISO structure
-buildenv/                # Docker toolchain
-```
-
-## License
-
-GPL-3.0
-
----
