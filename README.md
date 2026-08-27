@@ -6,7 +6,7 @@ FazbearOS currently boots through Multiboot2 + GRUB into a custom graphical desk
 
 ---
 <img width="1026" height="768" alt="image" src="https://github.com/user-attachments/assets/d4cebb9e-19a6-4705-b1b8-a7c6e23b8ff1" />
----
+
 
 ## Features
 
@@ -55,7 +55,8 @@ FazbearOS currently boots through Multiboot2 + GRUB into a custom graphical desk
 ### Applications
 
 - Nibble scratchpad application
-- Launch Nibble from the Start menu
+- Interactive Terminal with basic command support
+- Launch Nibble and Terminal from the Start menu
 - Minimize and restore applications from the taskbar
 - Close and relaunch applications
 - Keyboard input while Nibble is focused
@@ -70,14 +71,27 @@ FazbearOS currently boots through Multiboot2 + GRUB into a custom graphical desk
 ## Running a prebuilt ISO
 
 1. Download the latest ISO from the **Releases** tab.
-2. Run it with QEMU:
+2. Set cdrom path and then run it with QEMU:
 
 ```bash
 qemu-system-x86_64 \
- -cdrom dist/x86_64/kernel.iso \
+ -cdrom path/to/iso \
  -m 256M \
  -machine type=pc,accel=tcg \
  -device nec-usb-xhci \
  -device usb-tablet \
  -display sdl
 ```
+## Compile from source
+
+1. Enter the docker environment.
+   ```bash
+   docker run --rm -it -v "$(pwd)":/root/env fazbear-buildenv
+   ```
+2. Clean files and build.
+   ```bash
+   make clean
+   ```
+   ```bash
+   make build-x86_64
+   ```
