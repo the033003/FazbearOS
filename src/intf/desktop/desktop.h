@@ -6,6 +6,7 @@
 
 #include "desktop/window.h"
 #include "desktop/nibble.h"
+#include "desktop/terminal.h"
 
 #define DESKTOP_MAX_WINDOWS 16
 
@@ -31,8 +32,10 @@ typedef struct {
     window_t *dragging;
 
     nibble_t nibble;
-
     window_t nibble_window;
+
+    terminal_t terminal;
+    window_t terminal_window;
 } desktop_t;
 
 void desktop_init(

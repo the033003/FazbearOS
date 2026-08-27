@@ -7,8 +7,9 @@
 #define WINDOW_TITLE_MAX 64
 #define WINDOW_TITLEBAR_HEIGHT 28
 
-#define WINDOW_APP_GENERIC 0
-#define WINDOW_APP_NIBBLE  1
+#define WINDOW_APP_GENERIC   0
+#define WINDOW_APP_NIBBLE    1
+#define WINDOW_APP_TERMINAL  2
 
 typedef struct {
     int x;

@@ -13,25 +13,13 @@ struct multiboot_tag {
 
 /*
  * Multiboot2 framebuffer tag.
- *
- * Layout:
- *
- *   u32 type
- *   u32 size
- *   u64 framebuffer_addr
- *   u32 framebuffer_pitch
- *   u32 framebuffer_width
- *   u32 framebuffer_height
- *   u8  framebuffer_bpp
- *   u8  framebuffer_type
- *   u16 reserved
- *   color information...
  */
 struct multiboot_tag_framebuffer {
     uint32_t type;
     uint32_t size;
 
     uint64_t framebuffer_addr;
+
     uint32_t framebuffer_pitch;
     uint32_t framebuffer_width;
     uint32_t framebuffer_height;
@@ -72,13 +60,14 @@ struct multiboot_tag_framebuffer {
 
 static struct framebuffer framebuffer;
 
-static uint32_t* back_buffer;
+static uint32_t *back_buffer;
 static uint64_t back_buffer_size;
 
 static int available;
 
 /*
- * Convert a 0xRRGGBB color into the actual framebuffer pixel layout.
+ * Convert a 0xRRGGBB color into the actual framebuffer
+ * pixel layout.
  */
 static uint32_t make_color(
     uint32_t color
@@ -97,8 +86,7 @@ static uint32_t make_color(
         0;
 
     if (framebuffer.red_mask != 0) {
-        uint32_t value =
-            red;
+        uint32_t value = red;
 
         if (framebuffer.red_mask < 8) {
             value >>=
@@ -112,8 +100,7 @@ static uint32_t make_color(
     }
 
     if (framebuffer.green_mask != 0) {
-        uint32_t value =
-            green;
+        uint32_t value = green;
 
         if (framebuffer.green_mask < 8) {
             value >>=
@@ -127,8 +114,7 @@ static uint32_t make_color(
     }
 
     if (framebuffer.blue_mask != 0) {
-        uint32_t value =
-            blue;
+        uint32_t value = blue;
 
         if (framebuffer.blue_mask < 8) {
             value >>=
@@ -147,24 +133,30 @@ static uint32_t make_color(
 /*
  * Copy the software back buffer into the real framebuffer.
  *
- * The framebuffer pitch is measured in bytes and may be larger
- * than width * 4.
+ * The framebuffer pitch is measured in bytes and may be
+ * larger than width * 4.
  */
 static void copy_framebuffer(void)
 {
-    if (!available ||
+    if (
+        !available ||
         back_buffer == 0 ||
-        framebuffer.address == 0) {
+        framebuffer.address == 0
+    ) {
         return;
     }
 
-    if (framebuffer.width == 0 ||
-        framebuffer.height == 0) {
+    if (
+        framebuffer.width == 0 ||
+        framebuffer.height == 0
+    ) {
         return;
     }
 
-    if (framebuffer.pitch <
-        framebuffer.width * 4u) {
+    if (
+        framebuffer.pitch <
+        framebuffer.width * 4u
+    ) {
         return;
     }
 
@@ -177,24 +169,26 @@ static void copy_framebuffer(void)
     uint32_t pitch_pixels =
         framebuffer.pitch / 4u;
 
-    for (uint32_t y = 0;
-         y < height;
-         y++) {
-
-        uint32_t* destination =
+    for (
+        uint32_t y = 0;
+        y < height;
+        y++
+    ) {
+        uint32_t *destination =
             framebuffer.address +
             ((uint64_t)y *
              pitch_pixels);
 
-        uint32_t* source =
+        uint32_t *source =
             back_buffer +
             ((uint64_t)y *
              width);
 
-        for (uint32_t x = 0;
-             x < width;
-             x++) {
-
+        for (
+            uint32_t x = 0;
+            x < width;
+            x++
+        ) {
             destination[x] =
                 source[x];
         }
@@ -231,48 +225,37 @@ void graphics_init(
     }
 
     /*
-     * A Multiboot2 information structure begins with:
+     * Multiboot2 information begins with:
      *
      *   uint32_t total_size;
      *   uint32_t reserved;
      *
-     * The FIRST TAG starts at offset 8.
-     *
-     * This is critical. The previous implementation incorrectly
-     * started parsing at offset 0, causing total_size to be
-     * interpreted as a tag type and the framebuffer tag to never
-     * be reached.
+     * The first tag begins at offset 8.
      */
-    uint8_t* mbi =
-        (uint8_t*)(uintptr_t)
+    uint8_t *mbi =
+        (uint8_t *)(uintptr_t)
         multiboot_information;
 
     uint32_t total_size =
-        *(uint32_t*)mbi;
+        *(uint32_t *)mbi;
 
     if (total_size < 16) {
         return;
     }
 
-    /*
-     * Multiboot2 structures must be 8-byte aligned.
-     *
-     * The total size includes the initial 8-byte header.
-     */
     if ((total_size & 7u) != 0) {
         return;
     }
 
-    uint8_t* address =
+    uint8_t *address =
         mbi + 8;
 
-    uint8_t* end =
+    uint8_t *end =
         mbi + total_size;
 
     while (address + 8 <= end) {
-
-        struct multiboot_tag* tag =
-            (struct multiboot_tag*)address;
+        struct multiboot_tag *tag =
+            (struct multiboot_tag *)address;
 
         if (tag->size < 8) {
             return;
@@ -282,68 +265,69 @@ void graphics_init(
             return;
         }
 
-        if (tag->type ==
-            MULTIBOOT_TAG_END) {
+        if (
+            tag->type ==
+            MULTIBOOT_TAG_END
+        ) {
             break;
         }
 
-        if (tag->type ==
-            MULTIBOOT_TAG_FRAMEBUFFER) {
-
-            /*
-             * The common framebuffer portion ends
-             * after the reserved u16, at 32 bytes.
-             */
+        if (
+            tag->type ==
+            MULTIBOOT_TAG_FRAMEBUFFER
+        ) {
             if (tag->size < 32) {
                 return;
             }
 
-            struct multiboot_tag_framebuffer* fb =
-                (struct multiboot_tag_framebuffer*)
+            struct multiboot_tag_framebuffer *fb =
+                (struct multiboot_tag_framebuffer *)
                 tag;
 
             /*
-             * We require a direct RGB framebuffer.
+             * FazbearOS currently expects a direct RGB
+             * framebuffer.
              */
-            if (fb->framebuffer_type !=
-                MULTIBOOT_FRAMEBUFFER_RGB) {
+            if (
+                fb->framebuffer_type !=
+                MULTIBOOT_FRAMEBUFFER_RGB
+            ) {
                 return;
             }
 
-            /*
-             * The renderer works with 32-bit pixels.
-             */
-            if (fb->framebuffer_bpp != 32) {
+            if (
+                fb->framebuffer_bpp !=
+                32
+            ) {
                 return;
             }
 
-            if (fb->framebuffer_addr == 0) {
+            if (
+                fb->framebuffer_addr == 0
+            ) {
                 return;
             }
 
-            if (fb->framebuffer_width == 0 ||
-                fb->framebuffer_height == 0) {
+            if (
+                fb->framebuffer_width == 0 ||
+                fb->framebuffer_height == 0
+            ) {
                 return;
             }
 
-            /*
-             * Validate the framebuffer pitch.
-             */
             uint64_t minimum_pitch =
                 (uint64_t)
                 fb->framebuffer_width *
                 4u;
 
-            if ((uint64_t)
+            if (
+                (uint64_t)
                 fb->framebuffer_pitch <
-                minimum_pitch) {
+                minimum_pitch
+            ) {
                 return;
             }
 
-            /*
-             * Validate the complete framebuffer size
-             * before storing any derived values.
-             */
             uint64_t framebuffer_size =
                 (uint64_t)
                 fb->framebuffer_pitch *
@@ -354,17 +338,16 @@ void graphics_init(
                 return;
             }
 
-            /*
-             * Make sure the framebuffer address plus its
-             * size does not wrap around.
-             */
-            if (fb->framebuffer_addr >
-                UINT64_MAX - framebuffer_size) {
+            if (
+                fb->framebuffer_addr >
+                UINT64_MAX -
+                framebuffer_size
+            ) {
                 return;
             }
 
             framebuffer.address =
-                (uint32_t*)(uintptr_t)
+                (uint32_t *)(uintptr_t)
                 fb->framebuffer_addr;
 
             framebuffer.width =
@@ -400,19 +383,17 @@ void graphics_init(
             framebuffer.reserved_mask =
                 fb->framebuffer_reserved_mask_size;
 
-            /*
-             * Calculate the software back-buffer size.
-             */
             uint64_t pixels =
                 (uint64_t)
                 framebuffer.width *
                 (uint64_t)
                 framebuffer.height;
 
-            if (pixels >
+            if (
+                pixels >
                 ((uint64_t)SIZE_MAX /
-                 sizeof(uint32_t))) {
-
+                 sizeof(uint32_t))
+            ) {
                 framebuffer.address = 0;
                 return;
             }
@@ -421,16 +402,12 @@ void graphics_init(
                 pixels *
                 sizeof(uint32_t);
 
-            /*
-             * The software back buffer is allocated after
-             * the physical framebuffer has been validated.
-             */
-            extern void* kmalloc(
+            extern void *kmalloc(
                 size_t size
             );
 
             back_buffer =
-                (uint32_t*)
+                (uint32_t *)
                 kmalloc(
                     (size_t)
                     back_buffer_size
@@ -446,23 +423,20 @@ void graphics_init(
             /*
              * Start with a completely black back buffer.
              */
-            for (uint64_t i = 0;
-                 i < pixels;
-                 i++) {
-
-                back_buffer[i] =
-                    0;
+            for (
+                uint64_t i = 0;
+                i < pixels;
+                i++
+            ) {
+                back_buffer[i] = 0;
             }
 
-            available =
-                1;
+            available = 1;
 
             return;
         }
 
         /*
-         * Advance from the CURRENT tag.
-         *
          * Multiboot2 tags are individually padded to
          * an 8-byte boundary.
          */
@@ -482,7 +456,7 @@ void graphics_init(
     }
 }
 
-const struct framebuffer*
+const struct framebuffer *
 graphics_get_framebuffer(void)
 {
     return &framebuffer;
@@ -497,8 +471,10 @@ void graphics_clear(
     uint32_t color
 )
 {
-    if (!available ||
-        back_buffer == 0) {
+    if (
+        !available ||
+        back_buffer == 0
+    ) {
         return;
     }
 
@@ -511,10 +487,11 @@ void graphics_clear(
         (uint64_t)
         framebuffer.height;
 
-    for (uint64_t i = 0;
-         i < pixels;
-         i++) {
-
+    for (
+        uint64_t i = 0;
+        i < pixels;
+        i++
+    ) {
         back_buffer[i] =
             pixel;
     }
@@ -526,15 +503,19 @@ void graphics_put_pixel(
     uint32_t color
 )
 {
-    if (!available ||
-        back_buffer == 0) {
+    if (
+        !available ||
+        back_buffer == 0
+    ) {
         return;
     }
 
-    if (x < 0 ||
+    if (
+        x < 0 ||
         y < 0 ||
         x >= (int32_t)framebuffer.width ||
-        y >= (int32_t)framebuffer.height) {
+        y >= (int32_t)framebuffer.height
+    ) {
         return;
     }
 
@@ -554,13 +535,17 @@ void graphics_fill_rect(
     uint32_t color
 )
 {
-    if (!available ||
-        back_buffer == 0) {
+    if (
+        !available ||
+        back_buffer == 0
+    ) {
         return;
     }
 
-    if (width <= 0 ||
-        height <= 0) {
+    if (
+        width <= 0 ||
+        height <= 0
+    ) {
         return;
     }
 
@@ -584,41 +569,47 @@ void graphics_fill_rect(
         y_start = 0;
     }
 
-    if (x_end >
-        (int32_t)framebuffer.width) {
-
+    if (
+        x_end >
+        (int32_t)framebuffer.width
+    ) {
         x_end =
             (int32_t)framebuffer.width;
     }
 
-    if (y_end >
-        (int32_t)framebuffer.height) {
-
+    if (
+        y_end >
+        (int32_t)framebuffer.height
+    ) {
         y_end =
             (int32_t)framebuffer.height;
     }
 
-    if (x_start >= x_end ||
-        y_start >= y_end) {
+    if (
+        x_start >= x_end ||
+        y_start >= y_end
+    ) {
         return;
     }
 
     uint32_t pixel =
         make_color(color);
 
-    for (int32_t py = y_start;
-         py < y_end;
-         py++) {
-
-        uint32_t* row =
+    for (
+        int32_t py = y_start;
+        py < y_end;
+        py++
+    ) {
+        uint32_t *row =
             back_buffer +
             ((uint64_t)py *
              framebuffer.width);
 
-        for (int32_t px = x_start;
-             px < x_end;
-             px++) {
-
+        for (
+            int32_t px = x_start;
+            px < x_end;
+            px++
+        ) {
             row[px] =
                 pixel;
         }
@@ -633,8 +624,10 @@ void graphics_rect(
     uint32_t color
 )
 {
-    if (width <= 0 ||
-        height <= 0) {
+    if (
+        width <= 0 ||
+        height <= 0
+    ) {
         return;
     }
 
@@ -685,57 +678,400 @@ void graphics_draw_char(
     }
 
     /*
-     * 5x5 font.
+     * 5x5 bitmap font.
      *
-     * Entries cover ASCII 32 through 127.
+     * ASCII 32 through 126 are supported.
+     *
+     * The original renderer only supplied uppercase
+     * letters, which meant the keyboard could correctly
+     * produce lowercase characters but the renderer had
+     * no glyph to display them.
+     *
+     * Every printable ASCII character now has a glyph.
      */
-    static const uint8_t font[96][5] = {
+    static const uint8_t font[95][5] = {
+        [' ' - 32] = {
+            0, 0, 0, 0, 0
+        },
 
-        [1] = {0,0,0,0,0},
+        ['!' - 32] = {
+            4, 4, 4, 0, 4
+        },
 
-        ['A' - 32] = {14,17,17,31,17},
-        ['B' - 32] = {30,17,30,17,30},
-        ['C' - 32] = {15,16,16,16,15},
-        ['D' - 32] = {30,17,17,17,30},
-        ['E' - 32] = {31,16,30,16,31},
-        ['F' - 32] = {31,16,30,16,16},
-        ['G' - 32] = {15,16,23,17,15},
-        ['H' - 32] = {17,17,31,17,17},
-        ['I' - 32] = {31,4,4,4,31},
-        ['J' - 32] = {7,2,2,18,12},
-        ['K' - 32] = {17,18,28,18,17},
-        ['L' - 32] = {16,16,16,16,31},
-        ['M' - 32] = {17,27,21,17,17},
-        ['N' - 32] = {17,25,21,19,17},
-        ['O' - 32] = {14,17,17,17,14},
-        ['P' - 32] = {30,17,30,16,16},
-        ['Q' - 32] = {14,17,17,21,10},
-        ['R' - 32] = {30,17,30,18,17},
-        ['S' - 32] = {15,16,14,1,30},
-        ['T' - 32] = {31,4,4,4,4},
-        ['U' - 32] = {17,17,17,17,14},
-        ['V' - 32] = {17,17,17,10,4},
-        ['W' - 32] = {17,17,21,27,17},
-        ['X' - 32] = {17,10,4,10,17},
-        ['Y' - 32] = {17,10,4,4,4},
-        ['Z' - 32] = {31,2,4,8,31},
+        ['"' - 32] = {
+            10, 10, 0, 0, 0
+        },
 
-        ['0' - 32] = {14,17,19,21,14},
-        ['1' - 32] = {4,12,4,4,14},
-        ['2' - 32] = {14,17,2,4,31},
-        ['3' - 32] = {30,1,6,1,30},
-        ['4' - 32] = {2,6,10,31,2},
-        ['5' - 32] = {31,16,30,1,30},
-        ['6' - 32] = {14,16,30,17,14},
-        ['7' - 32] = {31,1,2,4,4},
-        ['8' - 32] = {14,17,14,17,14},
-        ['9' - 32] = {14,17,15,1,14},
+        ['#' - 32] = {
+            10, 31, 10, 31, 10
+        },
 
-        ['.' - 32] = {0,0,0,0,4},
-        ['-' - 32] = {0,0,31,0,0},
-        ['_' - 32] = {0,0,0,0,31},
-        [':' - 32] = {0,4,0,4,0},
-        ['/' - 32] = {1,2,4,8,16}
+        ['$' - 32] = {
+            14, 21, 28, 21, 14
+        },
+
+        ['%' - 32] = {
+            17, 2, 4, 8, 17
+        },
+
+        ['&' - 32] = {
+            12, 18, 20, 21, 10
+        },
+
+        ['\'' - 32] = {
+            4, 4, 0, 0, 0
+        },
+
+        ['(' - 32] = {
+            2, 4, 8, 4, 2
+        },
+
+        [')' - 32] = {
+            8, 4, 2, 4, 8
+        },
+
+        ['*' - 32] = {
+            0, 21, 14, 21, 0
+        },
+
+        ['+' - 32] = {
+            0, 4, 14, 4, 0
+        },
+
+        [',' - 32] = {
+            0, 0, 0, 4, 8
+        },
+
+        ['-' - 32] = {
+            0, 0, 31, 0, 0
+        },
+
+        ['.' - 32] = {
+            0, 0, 0, 0, 4
+        },
+
+        ['/' - 32] = {
+            1, 2, 4, 8, 16
+        },
+
+        ['0' - 32] = {
+            14, 17, 19, 21, 14
+        },
+
+        ['1' - 32] = {
+            4, 12, 4, 4, 14
+        },
+
+        ['2' - 32] = {
+            14, 17, 2, 4, 31
+        },
+
+        ['3' - 32] = {
+            30, 1, 6, 1, 30
+        },
+
+        ['4' - 32] = {
+            2, 6, 10, 31, 2
+        },
+
+        ['5' - 32] = {
+            31, 16, 30, 1, 30
+        },
+
+        ['6' - 32] = {
+            14, 16, 30, 17, 14
+        },
+
+        ['7' - 32] = {
+            31, 1, 2, 4, 4
+        },
+
+        ['8' - 32] = {
+            14, 17, 14, 17, 14
+        },
+
+        ['9' - 32] = {
+            14, 17, 15, 1, 14
+        },
+
+        [':' - 32] = {
+            0, 4, 0, 4, 0
+        },
+
+        [';' - 32] = {
+            0, 4, 0, 4, 8
+        },
+
+        ['<' - 32] = {
+            2, 4, 8, 4, 2
+        },
+
+        ['=' - 32] = {
+            0, 31, 0, 31, 0
+        },
+
+        ['>' - 32] = {
+            8, 4, 2, 4, 8
+        },
+
+        ['?' - 32] = {
+            14, 17, 2, 0, 2
+        },
+
+        ['@' - 32] = {
+            14, 17, 23, 16, 14
+        },
+
+        ['A' - 32] = {
+            14, 17, 17, 31, 17
+        },
+
+        ['B' - 32] = {
+            30, 17, 30, 17, 30
+        },
+
+        ['C' - 32] = {
+            15, 16, 16, 16, 15
+        },
+
+        ['D' - 32] = {
+            30, 17, 17, 17, 30
+        },
+
+        ['E' - 32] = {
+            31, 16, 30, 16, 31
+        },
+
+        ['F' - 32] = {
+            31, 16, 30, 16, 16
+        },
+
+        ['G' - 32] = {
+            15, 16, 23, 17, 15
+        },
+
+        ['H' - 32] = {
+            17, 17, 31, 17, 17
+        },
+
+        ['I' - 32] = {
+            31, 4, 4, 4, 31
+        },
+
+        ['J' - 32] = {
+            7, 2, 2, 18, 12
+        },
+
+        ['K' - 32] = {
+            17, 18, 28, 18, 17
+        },
+
+        ['L' - 32] = {
+            16, 16, 16, 16, 31
+        },
+
+        ['M' - 32] = {
+            17, 27, 21, 17, 17
+        },
+
+        ['N' - 32] = {
+            17, 25, 21, 19, 17
+        },
+
+        ['O' - 32] = {
+            14, 17, 17, 17, 14
+        },
+
+        ['P' - 32] = {
+            30, 17, 30, 16, 16
+        },
+
+        ['Q' - 32] = {
+            14, 17, 17, 21, 10
+        },
+
+        ['R' - 32] = {
+            30, 17, 30, 18, 17
+        },
+
+        ['S' - 32] = {
+            15, 16, 14, 1, 30
+        },
+
+        ['T' - 32] = {
+            31, 4, 4, 4, 4
+        },
+
+        ['U' - 32] = {
+            17, 17, 17, 17, 14
+        },
+
+        ['V' - 32] = {
+            17, 17, 17, 10, 4
+        },
+
+        ['W' - 32] = {
+            17, 17, 21, 27, 17
+        },
+
+        ['X' - 32] = {
+            17, 10, 4, 10, 17
+        },
+
+        ['Y' - 32] = {
+            17, 10, 4, 4, 4
+        },
+
+        ['Z' - 32] = {
+            31, 2, 4, 8, 31
+        },
+
+        ['[' - 32] = {
+            12, 8, 8, 8, 12
+        },
+
+        ['\\' - 32] = {
+            16, 8, 4, 2, 1
+        },
+
+        [']' - 32] = {
+            6, 2, 2, 2, 6
+        },
+
+        ['^' - 32] = {
+            4, 10, 17, 0, 0
+        },
+
+        ['_' - 32] = {
+            0, 0, 0, 0, 31
+        },
+
+        ['`' - 32] = {
+            8, 4, 0, 0, 0
+        },
+
+        /*
+         * Lowercase letters.
+         */
+        ['a' - 32] = {
+            0, 14, 1, 15, 15
+        },
+
+        ['b' - 32] = {
+            16, 30, 17, 17, 30
+        },
+
+        ['c' - 32] = {
+            0, 14, 16, 16, 14
+        },
+
+        ['d' - 32] = {
+            1, 15, 17, 17, 15
+        },
+
+        ['e' - 32] = {
+            0, 14, 17, 30, 14
+        },
+
+        ['f' - 32] = {
+            6, 8, 30, 8, 8
+        },
+
+        ['g' - 32] = {
+            0, 15, 17, 15, 1
+        },
+
+        ['h' - 32] = {
+            16, 30, 17, 17, 17
+        },
+
+        ['i' - 32] = {
+            4, 0, 12, 4, 14
+        },
+
+        ['j' - 32] = {
+            2, 0, 6, 2, 28
+        },
+
+        ['k' - 32] = {
+            16, 18, 28, 18, 17
+        },
+
+        ['l' - 32] = {
+            12, 4, 4, 4, 14
+        },
+
+        ['m' - 32] = {
+            0, 26, 21, 21, 17
+        },
+
+        ['n' - 32] = {
+            0, 30, 17, 17, 17
+        },
+
+        ['o' - 32] = {
+            0, 14, 17, 17, 14
+        },
+
+        ['p' - 32] = {
+            0, 30, 17, 30, 16
+        },
+
+        ['q' - 32] = {
+            0, 15, 17, 15, 1
+        },
+
+        ['r' - 32] = {
+            0, 22, 25, 16, 16
+        },
+
+        ['s' - 32] = {
+            0, 15, 24, 7, 30
+        },
+
+        ['t' - 32] = {
+            8, 28, 8, 8, 6
+        },
+
+        ['u' - 32] = {
+            0, 17, 17, 19, 13
+        },
+
+        ['v' - 32] = {
+            0, 17, 17, 10, 4
+        },
+
+        ['w' - 32] = {
+            0, 17, 21, 21, 10
+        },
+
+        ['x' - 32] = {
+            0, 17, 10, 4, 10
+        },
+
+        ['y' - 32] = {
+            0, 17, 17, 15, 1
+        },
+
+        ['z' - 32] = {
+            0, 31, 2, 8, 31
+        },
+
+        ['{' - 32] = {
+            6, 4, 24, 4, 6
+        },
+
+        ['|' - 32] = {
+            4, 4, 4, 4, 4
+        },
+
+        ['}' - 32] = {
+            24, 4, 3, 4, 24
+        },
+
+        ['~' - 32] = {
+            0, 10, 21, 0, 0
+        }
     };
 
     uint32_t fg =
@@ -745,7 +1081,9 @@ void graphics_draw_char(
         make_color(background);
 
     /*
-     * Fill the character background first.
+     * Always clear the complete character cell first.
+     * This is important for text that gets deleted or
+     * overwritten.
      */
     graphics_fill_rect(
         x,
@@ -758,32 +1096,36 @@ void graphics_draw_char(
     uint8_t character_code =
         (uint8_t)character;
 
-    if (character_code < 32 ||
-        character_code > 127) {
+    if (
+        character_code < 32 ||
+        character_code > 126
+    ) {
         return;
     }
 
-    const uint8_t* glyph =
+    const uint8_t *glyph =
         font[
             character_code - 32
         ];
 
-    for (int row = 0;
-         row < 5;
-         row++) {
-
+    for (
+        int row = 0;
+        row < 5;
+        row++
+    ) {
         uint8_t bits =
             glyph[row];
 
-        for (int col = 0;
-             col < 5;
-             col++) {
-
+        for (
+            int col = 0;
+            col < 5;
+            col++
+        ) {
             uint32_t pixel =
                 (bits &
                  (1u << (4 - col)))
-                ? fg
-                : bg;
+                    ? fg
+                    : bg;
 
             graphics_fill_rect(
                 x + col * scale,
@@ -799,7 +1141,7 @@ void graphics_draw_char(
 void graphics_draw_text(
     int32_t x,
     int32_t y,
-    const char* text,
+    const char *text,
     uint32_t foreground,
     uint32_t background,
     uint8_t scale
@@ -809,14 +1151,33 @@ void graphics_draw_text(
         return;
     }
 
+    if (scale == 0) {
+        scale = 1;
+    }
+
     int32_t cursor_x =
         x;
 
+    int32_t cursor_y =
+        y;
+
     while (*text != '\0') {
+        /*
+         * Allow callers to use draw_text() for multiple
+         * lines too.
+         */
+        if (*text == '\n') {
+            cursor_x = x;
+            cursor_y +=
+                6 * scale;
+
+            text++;
+            continue;
+        }
 
         graphics_draw_char(
             cursor_x,
-            y,
+            cursor_y,
             *text,
             foreground,
             background,

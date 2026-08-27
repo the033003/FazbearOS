@@ -33,35 +33,37 @@
 #define START_BUTTON_WIDTH 88
 
 #define START_MENU_WIDTH 250
-#define START_MENU_HEIGHT 270
+#define START_MENU_HEIGHT 330
 
 #define NIBBLE_BUTTON_Y 58
 #define NIBBLE_BUTTON_HEIGHT 48
 
-#define START_ACTION_Y 185
+#define TERMINAL_BUTTON_Y 112
+#define TERMINAL_BUTTON_HEIGHT 48
+
+#define START_ACTION_Y 250
 #define START_ACTION_HEIGHT 28
 #define START_ACTION_GAP 6
 
 static void desktop_restart(void)
 {
-    /*
-     * Reset through the PS/2 controller.
-     *
-     * Wait until the controller input buffer is empty,
-     * then write the reset command.
-     */
-    for (int i = 0; i < 100000; i++) {
-        if ((inb(0x64) & 0x02) == 0) {
+    for (
+        int i = 0;
+        i < 100000;
+        i++
+    ) {
+        if (
+            (inb(0x64) & 0x02) == 0
+        ) {
             break;
         }
     }
 
-    outb(0x64, 0xFE);
+    outb(
+        0x64,
+        0xFE
+    );
 
-    /*
-     * If the controller does not reset the machine,
-     * stop execution here.
-     */
     for (;;) {
         __asm__ volatile ("hlt");
     }
@@ -69,23 +71,15 @@ static void desktop_restart(void)
 
 static void desktop_power_off(void)
 {
-    /*
-     * QEMU / Bochs ACPI power-off.
-     *
-     * This is harmless on hardware where the port is not
-     * implemented; execution simply continues to the halt.
-     */
-    outw(0x604, 0x2000);
+    outw(
+        0x604,
+        0x2000
+    );
 
-    /*
-     * Older Bochs/QEMU configuration.
-     */
-    outw(0xB004, 0x2000);
-
-    /*
-     * APM fallback.
-     */
-    outw(0xB004, 0x2000);
+    outw(
+        0xB004,
+        0x2000
+    );
 
     for (;;) {
         __asm__ volatile ("hlt");
@@ -137,17 +131,23 @@ static window_t *desktop_top_window(
     }
 
     for (
-        int i = desktop->window_count - 1;
+        int i =
+            desktop->window_count - 1;
         i >= 0;
         i--
     ) {
-        window_t *window = desktop->windows[i];
+        window_t *window =
+            desktop->windows[i];
 
         if (
             window != 0 &&
             window->visible &&
             !window->minimized &&
-            window_contains(window, x, y)
+            window_contains(
+                window,
+                x,
+                y
+            )
         ) {
             return window;
         }
@@ -170,8 +170,15 @@ static void desktop_bring_to_front(
 
     int index = -1;
 
-    for (int i = 0; i < desktop->window_count; i++) {
-        if (desktop->windows[i] == window) {
+    for (
+        int i = 0;
+        i < desktop->window_count;
+        i++
+    ) {
+        if (
+            desktop->windows[i] ==
+            window
+        ) {
             index = i;
             break;
         }
@@ -204,12 +211,20 @@ static void desktop_focus(
         return;
     }
 
-    desktop->focused = window;
+    desktop->focused =
+        window;
 
-    for (int i = 0; i < desktop->window_count; i++) {
-        if (desktop->windows[i] != 0) {
+    for (
+        int i = 0;
+        i < desktop->window_count;
+        i++
+    ) {
+        if (
+            desktop->windows[i] != 0
+        ) {
             desktop->windows[i]->focused =
-                desktop->windows[i] == window;
+                desktop->windows[i] ==
+                window;
         }
     }
 
@@ -218,6 +233,53 @@ static void desktop_focus(
             desktop,
             window
         );
+    }
+}
+
+static void desktop_focus_next(
+    desktop_t *desktop
+)
+{
+    if (desktop == 0) {
+        return;
+    }
+
+    desktop->focused = 0;
+
+    for (
+        int i =
+            desktop->window_count - 1;
+        i >= 0;
+        i--
+    ) {
+        window_t *window =
+            desktop->windows[i];
+
+        if (
+            window != 0 &&
+            window->visible &&
+            !window->minimized
+        ) {
+            desktop_focus(
+                desktop,
+                window
+            );
+
+            return;
+        }
+    }
+
+    for (
+        int i = 0;
+        i < desktop->window_count;
+        i++
+    ) {
+        if (
+            desktop->windows[i] != 0
+        ) {
+            desktop->windows[i]->focused =
+                false;
+        }
     }
 }
 
@@ -261,15 +323,18 @@ static void desktop_clamp_window(
     }
 
     if (window->y < top_limit) {
-        window->y = top_limit;
+        window->y =
+            top_limit;
     }
 
     if (window->x > max_x) {
-        window->x = max_x;
+        window->x =
+            max_x;
     }
 
     if (window->y > max_y) {
-        window->y = max_y;
+        window->y =
+            max_y;
     }
 }
 
@@ -282,12 +347,11 @@ static bool point_in_rect(
     int height
 )
 {
-    return (
+    return
         x >= rx &&
         x < rx + width &&
         y >= ry &&
-        y < ry + height
-    );
+        y < ry + height;
 }
 
 static bool close_button_contains(
@@ -306,7 +370,9 @@ static bool close_button_contains(
     return point_in_rect(
         x,
         y,
-        window->x + window->width - 24,
+        window->x +
+            window->width -
+            24,
         window->y + 6,
         16,
         16
@@ -319,10 +385,16 @@ static bool minimize_button_contains(
     int y
 )
 {
+    if (window == 0) {
+        return false;
+    }
+
     return point_in_rect(
         x,
         y,
-        window->x + window->width - 47,
+        window->x +
+            window->width -
+            47,
         window->y + 6,
         16,
         16
@@ -398,9 +470,20 @@ static void draw_cursor(
         "             "
     };
 
-    for (int row = 0; row < 16; row++) {
-        for (int col = 0; col < 12; col++) {
-            if (cursor[row][col] == 'X') {
+    for (
+        int row = 0;
+        row < 16;
+        row++
+    ) {
+        for (
+            int col = 0;
+            col < 12;
+            col++
+        ) {
+            if (
+                cursor[row][col] ==
+                'X'
+            ) {
                 graphics_put_pixel(
                     x + col,
                     y + row,
@@ -410,9 +493,20 @@ static void draw_cursor(
         }
     }
 
-    for (int row = 0; row < 16; row++) {
-        for (int col = 0; col < 12; col++) {
-            if (interior[row][col] == 'X') {
+    for (
+        int row = 0;
+        row < 16;
+        row++
+    ) {
+        for (
+            int col = 0;
+            col < 12;
+            col++
+        ) {
+            if (
+                interior[row][col] ==
+                'X'
+            ) {
                 graphics_put_pixel(
                     x + col,
                     y + row,
@@ -479,7 +573,8 @@ static void draw_window(
     graphics_fill_rect(
         window->x,
         window->y +
-        WINDOW_TITLEBAR_HEIGHT - 1,
+            WINDOW_TITLEBAR_HEIGHT -
+            1,
         window->width,
         1,
         COLOR_TITLE_DARK
@@ -497,7 +592,8 @@ static void draw_window(
     if (window->closable) {
         graphics_fill_rect(
             window->x +
-            window->width - 24,
+                window->width -
+                24,
             window->y + 6,
             16,
             16,
@@ -506,7 +602,8 @@ static void draw_window(
 
         graphics_draw_text(
             window->x +
-            window->width - 21,
+                window->width -
+                21,
             window->y + 9,
             "X",
             COLOR_TEXT,
@@ -517,7 +614,8 @@ static void draw_window(
 
     graphics_fill_rect(
         window->x +
-        window->width - 47,
+            window->width -
+            47,
         window->y + 6,
         16,
         16,
@@ -526,7 +624,8 @@ static void draw_window(
 
     graphics_draw_text(
         window->x +
-        window->width - 44,
+            window->width -
+            44,
         window->y + 8,
         "-",
         COLOR_TEXT,
@@ -534,11 +633,27 @@ static void draw_window(
         1
     );
 
-    if (window->app_id == WINDOW_APP_NIBBLE) {
+    if (
+        window->app_id ==
+        WINDOW_APP_NIBBLE
+    ) {
         nibble_render(
             &desktop->nibble,
             window
         );
+
+        return;
+    }
+
+    if (
+        window->app_id ==
+        WINDOW_APP_TERMINAL
+    ) {
+        terminal_render(
+            &desktop->terminal,
+            window
+        );
+
         return;
     }
 
@@ -628,23 +743,37 @@ static void draw_clock(
 {
     struct rtc_datetime datetime;
 
-    rtc_read(&datetime);
+    rtc_read(
+        &datetime
+    );
 
     char clock[6];
 
     clock[0] =
-        (char)('0' + (datetime.hour / 10));
+        (char)(
+            '0' +
+            (datetime.hour / 10)
+        );
 
     clock[1] =
-        (char)('0' + (datetime.hour % 10));
+        (char)(
+            '0' +
+            (datetime.hour % 10)
+        );
 
     clock[2] = ':';
 
     clock[3] =
-        (char)('0' + (datetime.minute / 10));
+        (char)(
+            '0' +
+            (datetime.minute / 10)
+        );
 
     clock[4] =
-        (char)('0' + (datetime.minute % 10));
+        (char)(
+            '0' +
+            (datetime.minute % 10)
+        );
 
     clock[5] = '\0';
 
@@ -709,7 +838,11 @@ static void draw_taskbar(
         START_BUTTON_WIDTH +
         8;
 
-    for (int i = 0; i < desktop->window_count; i++) {
+    for (
+        int i = 0;
+        i < desktop->window_count;
+        i++
+    ) {
         const window_t *window =
             desktop->windows[i];
 
@@ -745,9 +878,13 @@ static void draw_taskbar(
             1
         );
 
-        task_x += width + 5;
+        task_x +=
+            width + 5;
 
-        if (task_x > desktop->width - 120) {
+        if (
+            task_x >
+            desktop->width - 120
+        ) {
             break;
         }
     }
@@ -761,14 +898,18 @@ static void draw_taskbar(
         1
     );
 
-    draw_clock(desktop);
+    draw_clock(
+        desktop
+    );
 }
 
 static void draw_start_menu(
     const desktop_t *desktop
 )
 {
-    if (!desktop->start_menu_open) {
+    if (
+        !desktop->start_menu_open
+    ) {
         return;
     }
 
@@ -804,9 +945,6 @@ static void draw_start_menu(
         COLOR_TASKBAR_TOP
     );
 
-    /*
-     * Header.
-     */
     graphics_fill_rect(
         x + 1,
         y + 1,
@@ -833,9 +971,6 @@ static void draw_start_menu(
         1
     );
 
-    /*
-     * Applications label.
-     */
     graphics_draw_text(
         x + 16,
         y + 52,
@@ -846,7 +981,7 @@ static void draw_start_menu(
     );
 
     /*
-     * Nibble application.
+     * Nibble.
      */
     uint32_t nibble_color =
         point_in_rect(
@@ -887,11 +1022,52 @@ static void draw_start_menu(
     );
 
     /*
-     * Separator above system controls.
+     * Terminal.
+     */
+    uint32_t terminal_color =
+        point_in_rect(
+            desktop->mouse_x,
+            desktop->mouse_y,
+            x + 10,
+            y + TERMINAL_BUTTON_Y,
+            START_MENU_WIDTH - 20,
+            TERMINAL_BUTTON_HEIGHT
+        )
+            ? START_MENU_HOVER
+            : COLOR_START;
+
+    graphics_fill_rect(
+        x + 10,
+        y + TERMINAL_BUTTON_Y,
+        START_MENU_WIDTH - 20,
+        TERMINAL_BUTTON_HEIGHT,
+        terminal_color
+    );
+
+    graphics_draw_text(
+        x + 20,
+        y + TERMINAL_BUTTON_Y + 10,
+        "TERMINAL",
+        COLOR_ACCENT,
+        terminal_color,
+        1
+    );
+
+    graphics_draw_text(
+        x + 20,
+        y + TERMINAL_BUTTON_Y + 25,
+        "Command shell",
+        COLOR_MUTED,
+        terminal_color,
+        1
+    );
+
+    /*
+     * Separator.
      */
     graphics_fill_rect(
         x + 12,
-        y + 176,
+        y + 230,
         START_MENU_WIDTH - 24,
         1,
         COLOR_BORDER
@@ -980,12 +1156,9 @@ static void draw_start_menu(
         1
     );
 
-    /*
-     * Footer.
-     */
     graphics_draw_text(
         x + 16,
-        y + 252,
+        y + 308,
         "FazbearOS",
         COLOR_MUTED,
         0x1A2130,
@@ -997,21 +1170,20 @@ static void draw_desktop(
     const desktop_t *desktop
 )
 {
-    graphics_clear(COLOR_DESKTOP);
+    graphics_clear(
+        COLOR_DESKTOP
+    );
 
     graphics_fill_rect(
         0,
         DESKTOP_TOPBAR_HEIGHT,
         desktop->width,
         desktop->height -
-        DESKTOP_TOPBAR_HEIGHT -
-        DESKTOP_TASKBAR_HEIGHT,
+            DESKTOP_TOPBAR_HEIGHT -
+            DESKTOP_TASKBAR_HEIGHT,
         COLOR_DESKTOP
     );
 
-    /*
-     * Subtle desktop grid.
-     */
     for (
         int x = 0;
         x < desktop->width;
@@ -1022,15 +1194,16 @@ static void draw_desktop(
             DESKTOP_TOPBAR_HEIGHT,
             1,
             desktop->height -
-            DESKTOP_TOPBAR_HEIGHT -
-            DESKTOP_TASKBAR_HEIGHT,
+                DESKTOP_TOPBAR_HEIGHT -
+                DESKTOP_TASKBAR_HEIGHT,
             0x111720
         );
     }
 
     for (
         int y = DESKTOP_TOPBAR_HEIGHT;
-        y < desktop->height -
+        y <
+            desktop->height -
             DESKTOP_TASKBAR_HEIGHT;
         y += 64
     ) {
@@ -1043,7 +1216,9 @@ static void draw_desktop(
         );
     }
 
-    draw_top_bar(desktop);
+    draw_top_bar(
+        desktop
+    );
 
     for (
         int i = 0;
@@ -1056,9 +1231,13 @@ static void draw_desktop(
         );
     }
 
-    draw_start_menu(desktop);
+    draw_start_menu(
+        desktop
+    );
 
-    draw_taskbar(desktop);
+    draw_taskbar(
+        desktop
+    );
 
     draw_cursor(
         desktop->mouse_x,
@@ -1084,44 +1263,69 @@ void desktop_init(
         height = 240;
     }
 
-    desktop->width = width;
-    desktop->height = height;
+    desktop->width =
+        width;
+
+    desktop->height =
+        height;
 
     mouse_set_screen_size(
         width,
         height
     );
 
-    desktop->mouse_x = width / 2;
-    desktop->mouse_y = height / 2;
+    desktop->mouse_x =
+        width / 2;
 
-    desktop->mouse_left = false;
-    desktop->previous_mouse_left = false;
+    desktop->mouse_y =
+        height / 2;
 
-    desktop->start_menu_open = false;
+    desktop->mouse_left =
+        false;
 
-    desktop->window_count = 0;
+    desktop->previous_mouse_left =
+        false;
 
-    desktop->focused = 0;
-    desktop->dragging = 0;
+    desktop->start_menu_open =
+        false;
+
+    desktop->window_count =
+        0;
+
+    desktop->focused =
+        0;
+
+    desktop->dragging =
+        0;
 
     for (
         int i = 0;
         i < DESKTOP_MAX_WINDOWS;
         i++
     ) {
-        desktop->windows[i] = 0;
+        desktop->windows[i] =
+            0;
     }
 
+    /*
+     * Nibble.
+     */
     nibble_init(
         &desktop->nibble
     );
 
-    int nibble_width = 520;
-    int nibble_height = 330;
+    int nibble_width =
+        520;
 
-    if (nibble_width > width - 30) {
-        nibble_width = width - 30;
+    int nibble_height =
+        330;
+
+    if (
+        nibble_width >
+        width - 30
+    ) {
+        nibble_width =
+            width - 30;
     }
 
     if (
@@ -1161,19 +1365,103 @@ void desktop_init(
     desktop->nibble_window.titlebar =
         0x31577D;
 
+    /*
+     * Nibble starts hidden. It is still registered with
+     * the desktop so the Start Menu can launch it.
+     */
+    desktop->nibble_window.visible =
+        false;
+
+    desktop->nibble_window.minimized =
+        false;
+
+    desktop->nibble_window.focused =
+        false;
+
     desktop_add_window(
         desktop,
         &desktop->nibble_window
     );
 
-    desktop_focus(
-        desktop,
-        &desktop->nibble_window
+    /*
+     * Terminal.
+     */
+    terminal_init(
+        &desktop->terminal
     );
 
-    desktop_clamp_window(
+    int terminal_width =
+        650;
+
+    int terminal_height =
+        420;
+
+    if (
+        terminal_width >
+        width - 30
+    ) {
+        terminal_width =
+            width - 30;
+    }
+
+    if (
+        terminal_height >
+        height -
+        DESKTOP_TOPBAR_HEIGHT -
+        DESKTOP_TASKBAR_HEIGHT -
+        20
+    ) {
+        terminal_height =
+            height -
+            DESKTOP_TOPBAR_HEIGHT -
+            DESKTOP_TASKBAR_HEIGHT -
+            20;
+    }
+
+    if (terminal_width < 300) {
+        terminal_width = 300;
+    }
+
+    if (terminal_height < 220) {
+        terminal_height = 220;
+    }
+
+    window_init(
+        &desktop->terminal_window,
+        "Terminal",
+        (width - terminal_width) / 2,
+        (height - terminal_height) / 2,
+        terminal_width,
+        terminal_height
+    );
+
+    desktop->terminal_window.app_id =
+        WINDOW_APP_TERMINAL;
+
+    desktop->terminal_window.background =
+        0x080C12;
+
+    desktop->terminal_window.border =
+        0x30415A;
+
+    desktop->terminal_window.titlebar =
+        0x172334;
+
+    /*
+     * Terminal also starts hidden.
+     */
+    desktop->terminal_window.visible =
+        false;
+
+    desktop->terminal_window.minimized =
+        false;
+
+    desktop->terminal_window.focused =
+        false;
+
+    desktop_add_window(
         desktop,
-        &desktop->nibble_window
+        &desktop->terminal_window
     );
 }
 
@@ -1201,8 +1489,10 @@ void desktop_update(
         );
 
         bool left =
-            (mouse->buttons &
-             MOUSE_BUTTON_LEFT) != 0;
+            (
+                mouse->buttons &
+                MOUSE_BUTTON_LEFT
+            ) != 0;
 
         desktop_mouse_button(
             desktop,
@@ -1213,19 +1503,28 @@ void desktop_update(
     }
 
     /*
-     * Nibble owns the keyboard while it
-     * is the focused application.
+     * The focused graphical application owns the keyboard.
      */
     if (
         desktop->focused != 0 &&
-        desktop->focused->app_id ==
-            WINDOW_APP_NIBBLE &&
         desktop->focused->visible &&
         !desktop->focused->minimized
     ) {
-        nibble_update(
-            &desktop->nibble
-        );
+        if (
+            desktop->focused->app_id ==
+            WINDOW_APP_NIBBLE
+        ) {
+            nibble_update(
+                &desktop->nibble
+            );
+        } else if (
+            desktop->focused->app_id ==
+            WINDOW_APP_TERMINAL
+        ) {
+            terminal_update(
+                &desktop->terminal
+            );
+        }
     }
 }
 
@@ -1240,7 +1539,9 @@ void desktop_render(
         return;
     }
 
-    draw_desktop(desktop);
+    draw_desktop(
+        desktop
+    );
 
     graphics_present();
 }
@@ -1255,14 +1556,21 @@ void desktop_mouse_move(
         return;
     }
 
-    desktop->mouse_x += dx;
-    desktop->mouse_y += dy;
+    desktop->mouse_x +=
+        dx;
 
-    if (desktop->mouse_x < 0) {
+    desktop->mouse_y +=
+        dy;
+
+    if (
+        desktop->mouse_x < 0
+    ) {
         desktop->mouse_x = 0;
     }
 
-    if (desktop->mouse_y < 0) {
+    if (
+        desktop->mouse_y < 0
+    ) {
         desktop->mouse_y = 0;
     }
 
@@ -1282,7 +1590,9 @@ void desktop_mouse_move(
             desktop->height - 1;
     }
 
-    if (desktop->dragging != 0) {
+    if (
+        desktop->dragging != 0
+    ) {
         window_t *window =
             desktop->dragging;
 
@@ -1310,11 +1620,15 @@ static void desktop_taskbar_click(
         DESKTOP_TASKBAR_HEIGHT;
 
     if (
-        desktop->mouse_y < taskbar_y
+        desktop->mouse_y <
+        taskbar_y
     ) {
         return;
     }
 
+    /*
+     * Start button.
+     */
     if (
         point_in_rect(
             desktop->mouse_x,
@@ -1328,10 +1642,15 @@ static void desktop_taskbar_click(
         desktop->start_menu_open =
             !desktop->start_menu_open;
 
-        desktop->dragging = 0;
+        desktop->dragging =
+            0;
+
         return;
     }
 
+    /*
+     * Application taskbar buttons.
+     */
     int task_x =
         START_BUTTON_X +
         START_BUTTON_WIDTH +
@@ -1366,21 +1685,30 @@ static void desktop_taskbar_click(
                 window->minimized ||
                 desktop->focused != window
             ) {
-                window->minimized = false;
+                window->minimized =
+                    false;
 
                 desktop_focus(
                     desktop,
                     window
                 );
             } else {
-                window->minimized = true;
-                window->focused = false;
+                window->minimized =
+                    true;
+
+                window->focused =
+                    false;
 
                 if (
                     desktop->focused ==
                     window
                 ) {
-                    desktop->focused = 0;
+                    desktop->focused =
+                        0;
+
+                    desktop_focus_next(
+                        desktop
+                    );
                 }
             }
 
@@ -1446,7 +1774,43 @@ static bool desktop_start_menu_click(
             &desktop->nibble_window
         );
 
-        desktop->start_menu_open = false;
+        desktop->start_menu_open =
+            false;
+
+        return true;
+    }
+
+    /*
+     * Terminal.
+     */
+    if (
+        point_in_rect(
+            desktop->mouse_x,
+            desktop->mouse_y,
+            x + 10,
+            y + TERMINAL_BUTTON_Y,
+            START_MENU_WIDTH - 20,
+            TERMINAL_BUTTON_HEIGHT
+        )
+    ) {
+        desktop->terminal_window.visible =
+            true;
+
+        desktop->terminal_window.minimized =
+            false;
+
+        desktop_focus(
+            desktop,
+            &desktop->terminal_window
+        );
+
+        desktop_clamp_window(
+            desktop,
+            &desktop->terminal_window
+        );
+
+        desktop->start_menu_open =
+            false;
 
         return true;
     }
@@ -1464,7 +1828,8 @@ static bool desktop_start_menu_click(
             START_ACTION_HEIGHT
         )
     ) {
-        desktop->start_menu_open = false;
+        desktop->start_menu_open =
+            false;
 
         desktop_restart();
 
@@ -1489,7 +1854,8 @@ static bool desktop_start_menu_click(
             START_ACTION_HEIGHT
         )
     ) {
-        desktop->start_menu_open = false;
+        desktop->start_menu_open =
+            false;
 
         desktop_power_off();
 
@@ -1497,7 +1863,7 @@ static bool desktop_start_menu_click(
     }
 
     /*
-     * Clicking anywhere inside the menu consumes the click.
+     * Clicking inside the menu consumes the click.
      */
     if (
         point_in_rect(
@@ -1513,9 +1879,10 @@ static bool desktop_start_menu_click(
     }
 
     /*
-     * Clicking outside closes the menu.
+     * Clicking outside closes it.
      */
-    desktop->start_menu_open = false;
+    desktop->start_menu_open =
+        false;
 
     return false;
 }
@@ -1534,10 +1901,16 @@ void desktop_mouse_button(
         !desktop->previous_mouse_left
     ) {
         /*
-         * Start menu gets first chance at input.
+         * Start Menu gets first chance.
          */
-        if (desktop_start_menu_click(desktop)) {
-            desktop->previous_mouse_left = left;
+        if (
+            desktop_start_menu_click(
+                desktop
+            )
+        ) {
+            desktop->previous_mouse_left =
+                left;
+
             return;
         }
 
@@ -1560,7 +1933,7 @@ void desktop_mouse_button(
         }
 
         /*
-         * Window controls and focus.
+         * Window controls/focus.
          */
         window_t *window =
             desktop_top_window(
@@ -1575,6 +1948,9 @@ void desktop_mouse_button(
                 window
             );
 
+            /*
+             * Close.
+             */
             if (
                 close_button_contains(
                     window,
@@ -1582,48 +1958,84 @@ void desktop_mouse_button(
                     desktop->mouse_y
                 )
             ) {
-                window->visible = false;
-                window->minimized = false;
-                window->focused = false;
-                window->dragging = false;
+                window->visible =
+                    false;
+
+                window->minimized =
+                    false;
+
+                window->focused =
+                    false;
+
+                window->dragging =
+                    false;
 
                 if (
                     desktop->focused ==
                     window
                 ) {
-                    desktop->focused = 0;
+                    desktop->focused =
+                        0;
+
+                    desktop_focus_next(
+                        desktop
+                    );
                 }
 
-                desktop->dragging = 0;
-                desktop->start_menu_open = false;
-            } else if (
+                desktop->dragging =
+                    0;
+
+                desktop->start_menu_open =
+                    false;
+            }
+
+            /*
+             * Minimize.
+             */
+            else if (
                 minimize_button_contains(
                     window,
                     desktop->mouse_x,
                     desktop->mouse_y
                 )
             ) {
-                window->minimized = true;
-                window->focused = false;
+                window->minimized =
+                    true;
+
+                window->focused =
+                    false;
 
                 if (
                     desktop->focused ==
                     window
                 ) {
-                    desktop->focused = 0;
+                    desktop->focused =
+                        0;
+
+                    desktop_focus_next(
+                        desktop
+                    );
                 }
 
-                desktop->dragging = 0;
-            } else if (
+                desktop->dragging =
+                    0;
+            }
+
+            /*
+             * Title bar dragging.
+             */
+            else if (
                 window_titlebar_contains(
                     window,
                     desktop->mouse_x,
                     desktop->mouse_y
                 )
             ) {
-                desktop->dragging = window;
+                desktop->dragging =
+                    window;
 
-                window->dragging = true;
+                window->dragging =
+                    true;
 
                 window->drag_offset_x =
                     desktop->mouse_x -
@@ -1640,14 +2052,20 @@ void desktop_mouse_button(
             return;
         }
 
-        desktop->start_menu_open = false;
+        desktop->start_menu_open =
+            false;
     }
 
+    /*
+     * Mouse release.
+     */
     if (
         !left &&
         desktop->previous_mouse_left
     ) {
-        if (desktop->dragging != 0) {
+        if (
+            desktop->dragging != 0
+        ) {
             desktop->dragging->dragging =
                 false;
 
@@ -1656,9 +2074,11 @@ void desktop_mouse_button(
                 desktop->dragging
             );
 
-            desktop->dragging = 0;
+            desktop->dragging =
+                0;
         }
     }
 
-    desktop->previous_mouse_left = left;
+    desktop->previous_mouse_left =
+        left;
 }

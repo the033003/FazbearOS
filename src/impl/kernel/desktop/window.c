@@ -29,25 +29,32 @@ void window_init(
         0x303080;
 
     window->visible = true;
+    window->minimized = false;
     window->focused = true;
     window->dragging = false;
+    window->closable = true;
 
     window->drag_offset_x = 0;
     window->drag_offset_y = 0;
 
-    for (int i = 0;
-         i < WINDOW_TITLE_MAX;
-         i++) {
+    window->app_id =
+        WINDOW_APP_GENERIC;
 
+    for (
+        int i = 0;
+        i < WINDOW_TITLE_MAX;
+        i++
+    ) {
         window->title[i] = '\0';
     }
 
     if (title != 0) {
         int i = 0;
 
-        while (title[i] != '\0' &&
-               i < WINDOW_TITLE_MAX - 1) {
-
+        while (
+            title[i] != '\0' &&
+            i < WINDOW_TITLE_MAX - 1
+        ) {
             window->title[i] =
                 title[i];
 
@@ -64,9 +71,11 @@ bool window_contains(
     int y
 )
 {
-    if (window == 0 ||
-        !window->visible) {
-
+    if (
+        window == 0 ||
+        !window->visible ||
+        window->minimized
+    ) {
         return false;
     }
 
@@ -83,11 +92,13 @@ bool window_titlebar_contains(
     int y
 )
 {
-    if (!window_contains(
+    if (
+        !window_contains(
             window,
             x,
-            y)) {
-
+            y
+        )
+    ) {
         return false;
     }
 
