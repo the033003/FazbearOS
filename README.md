@@ -5,9 +5,7 @@ A hobby x86_64 operating system written in C and Assembly.
 FazbearOS currently boots through Multiboot2 + GRUB into a custom graphical desktop with working PS/2 mouse and keyboard input, draggable windows, a taskbar, Start menu, and the Nibble scratchpad application.
 
 ---
-
-<img width="1029" height="794" alt="image" src="https://github.com/user-attachments/assets/9adf73f0-db95-4cd6-b0a5-56a6f5e5a37f" />
-
+<img width="1026" height="768" alt="image" src="https://github.com/user-attachments/assets/d4cebb9e-19a6-4705-b1b8-a7c6e23b8ff1" />
 ---
 
 ## Features
@@ -56,7 +54,7 @@ FazbearOS currently boots through Multiboot2 + GRUB into a custom graphical desk
 
 ### Applications
 
-- **Nibble** scratchpad application
+- Nibble scratchpad application
 - Launch Nibble from the Start menu
 - Minimize and restore applications from the taskbar
 - Close and relaunch applications
